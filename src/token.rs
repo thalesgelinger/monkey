@@ -16,6 +16,9 @@ pub enum Token {
     Asterisk,
     Slash,
 
+    Eq,
+    NotEq,
+
     Lt,
     Gt,
 

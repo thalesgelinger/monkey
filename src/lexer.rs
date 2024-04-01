@@ -33,10 +33,24 @@ impl Lexer {
     pub fn next_token(&mut self) -> Token {
         self.skip_whitespace();
         let token = match self.ch {
-            b'=' => Token::Assign,
+            b'=' => {
+                if self.peek_char() == b'=' {
+                    self.read_char();
+                    Token::Eq
+                } else {
+                    Token::Assign
+                }
+            }
+            b'!' => {
+                if self.peek_char() == b'=' {
+                    self.read_char();
+                    Token::NotEq
+                } else {
+                    Token::Bang
+                }
+            }
             b'+' => Token::Plus,
             b'-' => Token::Minus,
-            b'!' => Token::Bang,
             b'/' => Token::Slash,
             b'*' => Token::Asterisk,
             b'<' => Token::Lt,
@@ -98,6 +112,14 @@ impl Lexer {
             Err(_) => panic!("Error getting identifier"),
         }
     }
+
+    fn peek_char(&self) -> u8 {
+        if self.read_position > self.input.len() {
+            0
+        } else {
+            self.input[self.read_position]
+        }
+    }
 }
 
 #[cfg(test)]
@@ -148,6 +170,9 @@ mod tests {
         } else {
             return false;
         }
+
+        10 == 10;
+        10 != 9;
         ";
 
         let tests = vec![
@@ -216,6 +241,14 @@ mod tests {
             Token::False,
             Token::Semicolon,
             Token::Rbrace,
+            Token::Int(String::from("10")),
+            Token::Eq,
+            Token::Int(String::from("10")),
+            Token::Semicolon,
+            Token::Int(String::from("10")),
+            Token::NotEq,
+            Token::Int(String::from("9")),
+            Token::Semicolon,
             Token::Eof,
         ];
 
