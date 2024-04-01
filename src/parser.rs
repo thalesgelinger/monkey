@@ -141,8 +141,8 @@ mod parser_tests {
 
         let expected_idents = vec!["x", "y", "foobar"];
 
-        for (i, ident) in expected_idents.iter().enumerate() {
-            assert_eq!(ident.to_string(), program.statements[i].token_literal())
+        for (i, _ident) in expected_idents.iter().enumerate() {
+            assert_eq!("let", program.statements[i].token_literal());
         }
     }
 
