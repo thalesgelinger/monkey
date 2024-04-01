@@ -1,10 +1,13 @@
 use crate::lexer::Lexer;
 use crate::token::Token;
-use std::io;
+use std::io::{self, Write};
 
-pub fn repl() {
+pub fn start_repl() {
     loop {
         let mut input = String::new();
+        print!(">> ");
+
+        io::stdout().flush().unwrap();
 
         io::stdin()
             .read_line(&mut input)
@@ -18,5 +21,6 @@ pub fn repl() {
             println!("{:?}", tok);
             tok = lexer.next_token();
         }
+        println!("{:?}", tok);
     }
 }
