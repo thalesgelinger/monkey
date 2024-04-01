@@ -51,6 +51,11 @@ impl Lexer {
                 return match self.read_identifier().as_str() {
                     "fn" => Token::Function,
                     "let" => Token::Let,
+                    "true" => Token::True,
+                    "false" => Token::False,
+                    "if" => Token::If,
+                    "else" => Token::Else,
+                    "return" => Token::Return,
                     ident => Token::Ident(ident.to_string()),
                 }
             }
@@ -137,6 +142,12 @@ mod tests {
         let result = add(five, ten);
         !-/*5;
         5 < 10 > 5;
+
+        if (5 < 10) {
+            return true;
+        } else {
+            return false;
+        }
         ";
 
         let tests = vec![
@@ -188,6 +199,23 @@ mod tests {
             Token::Gt,
             Token::Int(String::from("5")),
             Token::Semicolon,
+            Token::If,
+            Token::Lparen,
+            Token::Int(String::from("5")),
+            Token::Lt,
+            Token::Int(String::from("10")),
+            Token::Rparen,
+            Token::Lbrace,
+            Token::Return,
+            Token::True,
+            Token::Semicolon,
+            Token::Rbrace,
+            Token::Else,
+            Token::Lbrace,
+            Token::Return,
+            Token::False,
+            Token::Semicolon,
+            Token::Rbrace,
             Token::Eof,
         ];
 

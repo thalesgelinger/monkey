@@ -16,7 +16,7 @@ pub enum Token {
     Asterisk,
     Slash,
 
-    Lt, 
+    Lt,
     Gt,
 
     // Delimiters
@@ -31,4 +31,9 @@ pub enum Token {
     // Keywords
     Function,
     Let,
+    True,
+    False,
+    If,
+    Else,
+    Return,
 }
