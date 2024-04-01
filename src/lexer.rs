@@ -123,7 +123,7 @@ impl Lexer {
 }
 
 #[cfg(test)]
-mod tests {
+mod lexer_tests {
 
     use crate::token::Token;
 
