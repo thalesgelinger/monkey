@@ -34,11 +34,17 @@ impl Lexer {
         self.skip_whitespace();
         let token = match self.ch {
             b'=' => Token::Assign,
+            b'+' => Token::Plus,
+            b'-' => Token::Minus,
+            b'!' => Token::Bang,
+            b'/' => Token::Slash,
+            b'*' => Token::Asterisk,
+            b'<' => Token::Lt,
+            b'>' => Token::Gt,
             b';' => Token::Semicolon,
             b'(' => Token::Lparen,
             b')' => Token::Rparen,
             b',' => Token::Comma,
-            b'+' => Token::Plus,
             b'{' => Token::Lbrace,
             b'}' => Token::Rbrace,
             b'a'..=b'z' | b'A'..=b'Z' | b'_' => {
@@ -128,7 +134,10 @@ mod tests {
           x + y;
         };
 
-        let result = add(five, ten);";
+        let result = add(five, ten);
+        !-/*5;
+        5 < 10 > 5;
+        ";
 
         let tests = vec![
             Token::Let,
@@ -166,6 +175,18 @@ mod tests {
             Token::Comma,
             Token::Ident(String::from("ten")),
             Token::Rparen,
+            Token::Semicolon,
+            Token::Bang,
+            Token::Minus,
+            Token::Slash,
+            Token::Asterisk,
+            Token::Int(String::from("5")),
+            Token::Semicolon,
+            Token::Int(String::from("5")),
+            Token::Lt,
+            Token::Int(String::from("10")),
+            Token::Gt,
+            Token::Int(String::from("5")),
             Token::Semicolon,
             Token::Eof,
         ];
