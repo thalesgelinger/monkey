@@ -1,12 +1,19 @@
-use crate::ast::{Identifier, LetStatement, Program, ReturnStatement, Statement};
+use crate::ast::{Expression, Identifier, LetStatement, Program, ReturnStatement, Statement};
 use crate::lexer::Lexer;
 use crate::token::Token;
+use std::collections::HashMap;
+
+type PrefixParseFn = fn() -> dyn Expression;
+type InfixParseFn = fn(expression: dyn Expression) -> dyn Expression;
 
 pub struct Parser {
     lexer: Lexer,
     pub current_token: Token,
     pub peek_token: Token,
     pub errors: Vec<String>,
+
+    pub prefix_parse_fns: HashMap<Token, PrefixParseFn>,
+    pub infix_parse_fns: HashMap<Token, InfixParseFn>,
 }
 
 impl Parser {
@@ -16,6 +23,8 @@ impl Parser {
             current_token: Token::Illegal,
             peek_token: Token::Illegal,
             errors: vec![],
+            prefix_parse_fns: HashMap::new(),
+            infix_parse_fns: HashMap::new(),
         };
         parser.next_token();
         parser.next_token();
@@ -112,6 +121,13 @@ impl Parser {
         };
 
         Some(Box::new(statement))
+    }
+
+    fn register_prefix(&mut self, token: Token, function: PrefixParseFn) {
+        self.prefix_parse_fns.insert(token, function);
+    }
+    fn register_infix(&mut self, token: Token, function: InfixParseFn) {
+        self.infix_parse_fns.insert(token, function);
     }
 }
 
