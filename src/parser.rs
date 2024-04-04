@@ -1,10 +1,22 @@
-use crate::ast::{Expression, Identifier, LetStatement, Program, ReturnStatement, Statement};
+use crate::ast::{
+    Expression, ExpressionStatement, Identifier, LetStatement, Program, ReturnStatement, Statement,
+};
 use crate::lexer::Lexer;
 use crate::token::Token;
 use std::collections::HashMap;
 
-type PrefixParseFn = fn() -> dyn Expression;
-type InfixParseFn = fn(expression: dyn Expression) -> dyn Expression;
+enum Precedence {
+    Lowest,
+    Equals,
+    Lessgreater,
+    Sum,
+    Product,
+    Prefix,
+    Call,
+}
+
+type PrefixParseFn = fn() -> Box<dyn Expression>;
+type InfixParseFn = fn(expression: Box<dyn Expression>) -> Box<dyn Expression>;
 
 pub struct Parser {
     lexer: Lexer,
@@ -28,6 +40,9 @@ impl Parser {
         };
         parser.next_token();
         parser.next_token();
+
+        parser.register_prefix(Token::Ident("".to_string()), parser.parse_identifier);
+
         parser
     }
 
@@ -52,7 +67,7 @@ impl Parser {
         match self.current_token {
             Token::Let => self.parse_let_statement(),
             Token::Return => self.parse_return_statement(),
-            _ => None,
+            _ => self.parse_expression_statement(),
         }
     }
 
@@ -129,13 +144,53 @@ impl Parser {
     fn register_infix(&mut self, token: Token, function: InfixParseFn) {
         self.infix_parse_fns.insert(token, function);
     }
+
+    fn parse_expression_statement(&mut self) -> Option<Box<dyn Statement>> {
+        let expression = self.parse_expression(Precedence::Lowest);
+        // stmt.Expression = p.parseExpression(LOWEST)
+
+        let statement = ExpressionStatement {
+            token: self.current_token.clone(),
+            expression,
+        };
+
+        if self.peek_token == Token::Semicolon {
+            self.next_token()
+        }
+
+        Some(Box::new(statement))
+    }
+
+    fn parse_expression(&self, precedence: Precedence) -> Option<Box<dyn Expression>> {
+        let prefix = match self.prefix_parse_fns.get(&self.current_token) {
+            Some(prefix) => prefix,
+            None => panic!("Error, has no prefix for this token"),
+        };
+        let left_exp = prefix();
+
+        Some(left_exp)
+    }
+
+    fn parse_identifier(&self) -> Box<dyn Expression> {
+        let identifier = match &self.current_token {
+            Token::Ident(value) => Identifier {
+                token: self.current_token,
+                value: value.to_string(),
+            },
+            _ => panic!("Error parsing Identifier"),
+        };
+
+        Box::new(identifier)
+    }
 }
 
 #[cfg(test)]
 mod parser_tests {
 
     use super::Parser;
+    use crate::ast::{ExpressionStatement, Identifier};
     use crate::lexer::Lexer;
+    use crate::token::Token;
 
     #[test]
     fn test_let_statements() {
@@ -148,10 +203,7 @@ mod parser_tests {
         let lexer = Lexer::new(input.into());
         let mut parser = Parser::new(lexer);
         let program = parser.parse_program();
-
-        for msg in parser.errors {
-            eprintln!("Parser error: {:?}", msg);
-        }
+        check_parse_errors(parser.errors);
 
         assert_eq!(program.statements.len(), 3);
 
@@ -178,6 +230,43 @@ mod parser_tests {
 
         for stmt in program.statements {
             assert_eq!("return", stmt.token_literal())
+        }
+    }
+
+    #[test]
+    fn test_identifier_expression() {
+        let input = "foobar;";
+
+        let lexer = Lexer::new(input.into());
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program();
+        check_parse_errors(parser.errors);
+
+        assert_eq!(program.statements.len(), 1);
+
+        let stmt = match program.statements.first() {
+            Some(s) => match s.as_any().downcast_ref::<ExpressionStatement>() {
+                Some(statement) => Box::new(statement),
+                None => panic!("Error creating ExpressionStatement"),
+            },
+            None => panic!("There's no statement here"),
+        };
+
+        let ident = match stmt.expression.as_ref() {
+            Some(e) => match e.as_any().downcast_ref::<Identifier>() {
+                Some(expression) => Box::new(expression),
+                None => panic!("Error casting expression identifier"),
+            },
+            None => panic!("There's no expression"),
+        };
+
+        assert_eq!(ident.value, "foobar");
+        assert_eq!(ident.token, Token::Ident(String::from("foobar")));
+    }
+
+    fn check_parse_errors(errors: Vec<String>) {
+        for msg in errors {
+            eprintln!("Parser error: {:?}", msg);
         }
     }
 }

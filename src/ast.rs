@@ -1,8 +1,17 @@
 use crate::token::Token;
+use std::any::Any;
 
+pub trait AnyNode: 'static {
+    fn as_any(&self) -> &dyn Any;
+}
 
+impl<T: 'static> AnyNode for T {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
 
-pub trait Node {
+pub trait Node: AnyNode {
     fn token_literal(&self) -> String;
     fn string(&self) -> String;
 }
