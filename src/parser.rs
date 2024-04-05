@@ -129,32 +129,24 @@ impl Parser {
     }
 
     fn parse_expression_statement(&mut self) -> Option<Box<dyn Statement>> {
-        let _expression = match &self.parse_expression(Precedence::Lowest) {
-            Some(e) => {
-                println!("Expression: {:?}", e);
-            }
-            None => todo!(),
+        let expression = self.parse_expression(Precedence::Lowest);
+
+        let statement = ExpressionStatement {
+            token: self.current_token.clone(),
+            expression,
         };
 
-        None
+        if self.peek_token == Token::Semicolon {
+            self.next_token()
+        }
 
-        // let statement = ExpressionStatement {
-        //     token: self.current_token.clone(),
-        //     expression,
-        // };
-
-        // if self.peek_token == Token::Semicolon {
-        //     self.next_token()
-        // }
-
-        // Some(Box::new(statement))
+        Some(Box::new(statement))
     }
 
     fn parse_expression(&self, precedence: Precedence) -> Option<Box<dyn Expression>> {
-        let left_exp = self.prefix_parse_fns().unwrap();
-        println!("Left Exp: {:?}", left_exp);
+        let left_exp = self.prefix_parse_fns();
 
-        Some(left_exp)
+        left_exp
     }
 
     fn prefix_parse_fns(&self) -> Option<Box<dyn Expression>> {
@@ -232,24 +224,24 @@ mod parser_tests {
         check_parse_errors(parser.errors);
         assert_eq!(program.statements.len(), 1);
 
-        // let stmt = match program.statements.first() {
-        //     Some(s) => match s.as_any().downcast_ref::<ExpressionStatement>() {
-        //         Some(statement) => Box::new(statement),
-        //         None => panic!("Error creating ExpressionStatement"),
-        //     },
-        //     None => panic!("There's no statement here"),
-        // };
+        let stmt = match program.statements.first() {
+            Some(s) => match s.as_any().downcast_ref::<ExpressionStatement>() {
+                Some(statement) => Box::new(statement),
+                None => panic!("Error creating ExpressionStatement"),
+            },
+            None => panic!("There's no statement here"),
+        };
 
-        // let ident = match stmt.expression.as_ref() {
-        //     Some(e) => match e.as_any().downcast_ref::<Identifier>() {
-        //         Some(expression) => Box::new(expression),
-        //         None => panic!("Error casting expression identifier"),
-        //     },
-        //     None => panic!("There's no expression"),
-        // };
+        let ident = match stmt.expression.as_ref() {
+            Some(e) => match e.as_any().downcast_ref::<Identifier>() {
+                Some(expression) => Box::new(expression),
+                None => panic!("Error casting expression identifier"),
+            },
+            None => panic!("There's no expression"),
+        };
 
-        // assert_eq!(ident.value, "foobar");
-        // assert_eq!(ident.token, Token::Ident(String::from("foobar")));
+        assert_eq!(ident.value, "foobar");
+        assert_eq!(ident.token, Token::Ident(String::from("foobar")));
     }
 
     fn check_parse_errors(errors: Vec<String>) {

@@ -151,17 +151,13 @@ pub struct Identifier {
 
 impl Debug for Identifier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Identifier -> token: {:?}, value: {}",
-            self.token, self.value
-        )
+        write!(f, "{:?}", self.token_literal())
     }
 }
 
 impl Node for Identifier {
     fn token_literal(&self) -> String {
-        todo!("Implemente for Identifier")
+        format!("{:?}", self.token)
     }
 
     fn string(&self) -> String {
