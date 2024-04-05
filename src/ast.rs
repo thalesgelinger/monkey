@@ -1,5 +1,6 @@
 use crate::token::Token;
-use std::any::Any;
+use core::fmt::Debug;
+use std::{any::Any, fmt::Display};
 
 pub trait AnyNode: 'static {
     fn as_any(&self) -> &dyn Any;
@@ -22,6 +23,18 @@ pub trait Statement: Node {
 
 pub trait Expression: Node {
     fn expression_node(&self);
+}
+
+impl Debug for dyn Expression {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.token_literal())
+    }
+}
+
+impl Display for dyn Expression {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
 }
 
 pub struct Program {
@@ -108,7 +121,7 @@ impl Node for LetStatement {
 
 impl Node for ExpressionStatement {
     fn token_literal(&self) -> String {
-        "".to_string()
+        format!("{:?}", self.token)
     }
 
     fn string(&self) -> String {
@@ -134,6 +147,16 @@ impl Statement for ExpressionStatement {
 pub struct Identifier {
     pub token: Token,
     pub value: String,
+}
+
+impl Debug for Identifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Identifier -> token: {:?}, value: {}",
+            self.token, self.value
+        )
+    }
 }
 
 impl Node for Identifier {
