@@ -170,6 +170,32 @@ impl Expression for Identifier {
     fn expression_node(&self) {}
 }
 
+pub struct IntegerLiteral {
+    pub token: Token,
+    pub value: usize,
+}
+
+impl Debug for IntegerLiteral {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.token_literal())
+    }
+}
+
+impl Node for IntegerLiteral {
+    fn token_literal(&self) -> String {
+        format!("{:?}", self.token)
+    }
+
+    fn string(&self) -> String {
+        let value = &self.value;
+        value.to_string()
+    }
+}
+
+impl Expression for IntegerLiteral {
+    fn expression_node(&self) {}
+}
+
 #[cfg(test)]
 mod ast_tests {
 

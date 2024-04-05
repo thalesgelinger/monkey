@@ -100,7 +100,7 @@ impl Lexer {
         }
     }
 
-    fn read_number(&mut self) -> String {
+    fn read_number(&mut self) -> usize {
         let position = self.position;
 
         while self.ch.is_ascii_digit() {
@@ -108,7 +108,7 @@ impl Lexer {
         }
 
         match String::from_utf8(self.input[position..self.position].to_vec()) {
-            Ok(number) => number,
+            Ok(number) => number.parse::<usize>().unwrap(),
             Err(_) => panic!("Error getting identifier"),
         }
     }
@@ -179,12 +179,12 @@ mod lexer_tests {
             Token::Let,
             Token::Ident(String::from("five")),
             Token::Assign,
-            Token::Int(String::from("5")),
+            Token::Int(5),
             Token::Semicolon,
             Token::Let,
             Token::Ident(String::from("ten")),
             Token::Assign,
-            Token::Int(String::from("10")),
+            Token::Int(10),
             Token::Semicolon,
             Token::Let,
             Token::Ident(String::from("add")),
@@ -216,19 +216,19 @@ mod lexer_tests {
             Token::Minus,
             Token::Slash,
             Token::Asterisk,
-            Token::Int(String::from("5")),
+            Token::Int(5),
             Token::Semicolon,
-            Token::Int(String::from("5")),
+            Token::Int(5),
             Token::Lt,
-            Token::Int(String::from("10")),
+            Token::Int(10),
             Token::Gt,
-            Token::Int(String::from("5")),
+            Token::Int(5),
             Token::Semicolon,
             Token::If,
             Token::Lparen,
-            Token::Int(String::from("5")),
+            Token::Int(5),
             Token::Lt,
-            Token::Int(String::from("10")),
+            Token::Int(10),
             Token::Rparen,
             Token::Lbrace,
             Token::Return,
@@ -241,13 +241,13 @@ mod lexer_tests {
             Token::False,
             Token::Semicolon,
             Token::Rbrace,
-            Token::Int(String::from("10")),
+            Token::Int(10),
             Token::Eq,
-            Token::Int(String::from("10")),
+            Token::Int(10),
             Token::Semicolon,
-            Token::Int(String::from("10")),
+            Token::Int(10),
             Token::NotEq,
-            Token::Int(String::from("9")),
+            Token::Int(9),
             Token::Semicolon,
             Token::Eof,
         ];

@@ -1,5 +1,6 @@
 use crate::ast::{
-    Expression, ExpressionStatement, Identifier, LetStatement, Program, ReturnStatement, Statement,
+    Expression, ExpressionStatement, Identifier, IntegerLiteral, LetStatement, Program,
+    ReturnStatement, Statement,
 };
 use crate::lexer::Lexer;
 use crate::token::Token;
@@ -157,9 +158,16 @@ impl Parser {
                     token: token.clone(),
                     value: value.to_string(),
                 });
-                println!("Identifier: {:?}", ident);
                 Some(ident)
             }
+            Token::Int(value) => {
+                let ident = Box::new(IntegerLiteral {
+                    token: token.clone(),
+                    value: *value,
+                });
+                Some(ident)
+            }
+
             _ => None,
         }
     }
@@ -169,7 +177,7 @@ impl Parser {
 mod parser_tests {
 
     use super::Parser;
-    use crate::ast::{ExpressionStatement, Identifier};
+    use crate::ast::{ExpressionStatement, Identifier, IntegerLiteral};
     use crate::lexer::Lexer;
     use crate::token::Token;
 
@@ -242,6 +250,35 @@ mod parser_tests {
 
         assert_eq!(ident.value, "foobar");
         assert_eq!(ident.token, Token::Ident(String::from("foobar")));
+    }
+    #[test]
+    fn test_integer_literal_expression() {
+        let input = "5;";
+
+        let lexer = Lexer::new(input.into());
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program();
+        check_parse_errors(parser.errors);
+        assert_eq!(program.statements.len(), 1);
+
+        let stmt = match program.statements.first() {
+            Some(s) => match s.as_any().downcast_ref::<ExpressionStatement>() {
+                Some(statement) => Box::new(statement),
+                None => panic!("Error creating ExpressionStatement"),
+            },
+            None => panic!("There's no statement here"),
+        };
+
+        let ident = match stmt.expression.as_ref() {
+            Some(e) => match e.as_any().downcast_ref::<IntegerLiteral>() {
+                Some(expression) => Box::new(expression),
+                None => panic!("Error casting expression identifier"),
+            },
+            None => panic!("There's no expression"),
+        };
+
+        assert_eq!(ident.value, 5);
+        assert_eq!(ident.token, Token::Int(5));
     }
 
     fn check_parse_errors(errors: Vec<String>) {
