@@ -170,20 +170,8 @@ impl Parser {
                 });
                 Some(ident)
             }
-            Token::Bang => {
-                let mut expression = PrefixExpression {
-                    token: self.current_token.clone(),
-                    operator: self.current_token.clone(),
-                    right: None,
-                };
-
-                self.next_token();
-
-                expression.right = self.parse_expression(Precedence::Prefix);
-
-                Some(Box::new(expression))
-            }
-            // Token::Minus => self.parse_prefix_expression(),
+            Token::Bang => self.parse_prefix_expression(),
+            Token::Minus => self.parse_prefix_expression(),
             _ => None,
         }
     }
@@ -191,6 +179,20 @@ impl Parser {
     fn no_prefix_parse_fn_error(&mut self, token: Token) {
         let msg = format!("no prefix parse function for {:?} found", token);
         self.errors.push(msg)
+    }
+
+    fn parse_prefix_expression(&mut self) -> Option<Box<dyn Expression>> {
+        let mut expression = PrefixExpression {
+            token: self.current_token.clone(),
+            operator: self.current_token.clone(),
+            right: None,
+        };
+
+        self.next_token();
+
+        expression.right = self.parse_expression(Precedence::Prefix);
+
+        Some(Box::new(expression))
     }
 }
 
@@ -303,14 +305,17 @@ mod parser_tests {
 
     #[test]
     fn test_parsing_prefix_expressions() {
-        let prefix_tests = vec![("!5;", Token::Bang), ("-15;", Token::Minus)];
-        for (input, operator) in prefix_tests {
+        let prefix_tests = vec![
+            ("!5;", Token::Bang, Token::Int(5)),
+            ("-15;", Token::Minus, Token::Int(15)),
+        ];
+        for (input, operator, value) in prefix_tests {
             let lexer = Lexer::new(input.into());
             let mut parser = Parser::new(lexer);
             let program = parser.parse_program();
             check_parse_errors(parser.errors);
 
-            assert_eq!(program.statements.len(), 2);
+            assert_eq!(program.statements.len(), 1);
 
             let stmt = match program.statements.first() {
                 Some(s) => match s.as_any().downcast_ref::<ExpressionStatement>() {
@@ -338,7 +343,7 @@ mod parser_tests {
                 None => panic!("There's no expression"),
             };
 
-            assert_eq!(right.token, Token::Int(5));
+            assert_eq!(right.token, value);
         }
     }
 
