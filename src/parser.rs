@@ -1,6 +1,6 @@
 use crate::ast::{
-    Expression, ExpressionStatement, Identifier, IntegerLiteral, LetStatement, Program,
-    ReturnStatement, Statement,
+    Expression, ExpressionStatement, Identifier, IntegerLiteral, LetStatement, PrefixExpression,
+    Program, ReturnStatement, Statement,
 };
 use crate::lexer::Lexer;
 use crate::token::Token;
@@ -69,7 +69,6 @@ impl Parser {
             Token::Ident(value) => {
                 let ident = Identifier {
                     token: self.peek_token.clone(),
-                    value,
                 };
                 self.next_token();
                 ident
@@ -144,32 +143,54 @@ impl Parser {
         Some(Box::new(statement))
     }
 
-    fn parse_expression(&self, precedence: Precedence) -> Option<Box<dyn Expression>> {
-        let left_exp = self.prefix_parse_fns();
+    fn parse_expression(&mut self, precedence: Precedence) -> Option<Box<dyn Expression>> {
+        let left_exp = match self.prefix_parse_fns() {
+            Some(expression) => Some(expression),
+            None => {
+                self.no_prefix_parse_fn_error(self.current_token.clone());
+                return None;
+            }
+        };
 
         left_exp
     }
 
-    fn prefix_parse_fns(&self) -> Option<Box<dyn Expression>> {
+    fn prefix_parse_fns(&mut self) -> Option<Box<dyn Expression>> {
         let token = &self.current_token;
         match token {
-            Token::Ident(value) => {
+            Token::Ident(_) => {
                 let ident = Box::new(Identifier {
                     token: token.clone(),
-                    value: value.to_string(),
                 });
                 Some(ident)
             }
-            Token::Int(value) => {
+            Token::Int(_) => {
                 let ident = Box::new(IntegerLiteral {
                     token: token.clone(),
-                    value: *value,
                 });
                 Some(ident)
             }
+            Token::Bang => {
+                let mut expression = PrefixExpression {
+                    token: self.current_token.clone(),
+                    operator: self.current_token.clone(),
+                    right: None,
+                };
 
+                self.next_token();
+
+                expression.right = self.parse_expression(Precedence::Prefix);
+
+                Some(Box::new(expression))
+            }
+            // Token::Minus => self.parse_prefix_expression(),
             _ => None,
         }
+    }
+
+    fn no_prefix_parse_fn_error(&mut self, token: Token) {
+        let msg = format!("no prefix parse function for {:?} found", token);
+        self.errors.push(msg)
     }
 }
 
@@ -177,7 +198,7 @@ impl Parser {
 mod parser_tests {
 
     use super::Parser;
-    use crate::ast::{ExpressionStatement, Identifier, IntegerLiteral};
+    use crate::ast::{ExpressionStatement, Identifier, IntegerLiteral, PrefixExpression};
     use crate::lexer::Lexer;
     use crate::token::Token;
 
@@ -248,7 +269,6 @@ mod parser_tests {
             None => panic!("There's no expression"),
         };
 
-        assert_eq!(ident.value, "foobar");
         assert_eq!(ident.token, Token::Ident(String::from("foobar")));
     }
     #[test]
@@ -259,6 +279,7 @@ mod parser_tests {
         let mut parser = Parser::new(lexer);
         let program = parser.parse_program();
         check_parse_errors(parser.errors);
+
         assert_eq!(program.statements.len(), 1);
 
         let stmt = match program.statements.first() {
@@ -277,8 +298,48 @@ mod parser_tests {
             None => panic!("There's no expression"),
         };
 
-        assert_eq!(ident.value, 5);
         assert_eq!(ident.token, Token::Int(5));
+    }
+
+    #[test]
+    fn test_parsing_prefix_expressions() {
+        let prefix_tests = vec![("!5;", Token::Bang), ("-15;", Token::Minus)];
+        for (input, operator) in prefix_tests {
+            let lexer = Lexer::new(input.into());
+            let mut parser = Parser::new(lexer);
+            let program = parser.parse_program();
+            check_parse_errors(parser.errors);
+
+            assert_eq!(program.statements.len(), 2);
+
+            let stmt = match program.statements.first() {
+                Some(s) => match s.as_any().downcast_ref::<ExpressionStatement>() {
+                    Some(statement) => Box::new(statement),
+                    None => panic!("Error creating ExpressionStatement"),
+                },
+                None => panic!("There's no statement here"),
+            };
+
+            let expression = match stmt.expression.as_ref() {
+                Some(e) => match e.as_any().downcast_ref::<PrefixExpression>() {
+                    Some(expression) => Box::new(expression),
+                    None => panic!("Error casting expression identifier"),
+                },
+                None => panic!("There's no expression"),
+            };
+
+            assert_eq!(expression.operator, operator);
+
+            let right = match expression.right.as_ref() {
+                Some(e) => match e.as_any().downcast_ref::<IntegerLiteral>() {
+                    Some(expression) => Box::new(expression),
+                    None => panic!("Error casting expression identifier"),
+                },
+                None => panic!("There's no expression"),
+            };
+
+            assert_eq!(right.token, Token::Int(5));
+        }
     }
 
     fn check_parse_errors(errors: Vec<String>) {

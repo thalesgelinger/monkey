@@ -125,10 +125,10 @@ impl Node for ExpressionStatement {
     }
 
     fn string(&self) -> String {
-        if let Some(expression) = &self.expression {
-            return expression.string();
+        match &self.expression {
+            Some(expression) => expression.to_string(),
+            None => panic!("Fail stringifying expression"),
         }
-        "".to_string()
     }
 }
 
@@ -146,7 +146,6 @@ impl Statement for ExpressionStatement {
 
 pub struct Identifier {
     pub token: Token,
-    pub value: String,
 }
 
 impl Debug for Identifier {
@@ -157,12 +156,17 @@ impl Debug for Identifier {
 
 impl Node for Identifier {
     fn token_literal(&self) -> String {
-        format!("{:?}", self.token)
+        match &self.token {
+            Token::Ident(ident) => ident.to_string(),
+            _ => panic!("This token should be an Ident"),
+        }
     }
 
     fn string(&self) -> String {
-        let value = &self.value;
-        value.to_string()
+        match &self.token {
+            Token::Ident(ident) => ident.to_string(),
+            _ => panic!("This token should be an Ident"),
+        }
     }
 }
 
@@ -172,7 +176,6 @@ impl Expression for Identifier {
 
 pub struct IntegerLiteral {
     pub token: Token,
-    pub value: usize,
 }
 
 impl Debug for IntegerLiteral {
@@ -187,12 +190,40 @@ impl Node for IntegerLiteral {
     }
 
     fn string(&self) -> String {
-        let value = &self.value;
-        value.to_string()
+        format!("{:?}", self.token)
     }
 }
 
 impl Expression for IntegerLiteral {
+    fn expression_node(&self) {}
+}
+
+pub struct PrefixExpression {
+    pub token: Token,
+    pub right: Option<Box<dyn Expression>>,
+    pub operator: Token,
+}
+
+impl Debug for PrefixExpression {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.token_literal())
+    }
+}
+
+impl Node for PrefixExpression {
+    fn token_literal(&self) -> String {
+        format!("{:?}", self.token)
+    }
+
+    fn string(&self) -> String {
+        if let Some(right) = &self.right {
+            return format!("({:?}, {:?})", self.operator, right.string());
+        };
+        format!("({:?})", self.operator)
+    }
+}
+
+impl Expression for PrefixExpression {
     fn expression_node(&self) {}
 }
 
@@ -209,11 +240,9 @@ mod ast_tests {
                 token: Token::Let,
                 name: Identifier {
                     token: Token::Ident("myVar".to_string()),
-                    value: "myVar".to_string(),
                 },
                 value: Some(Box::new(Identifier {
                     token: Token::Ident("anotherVar".to_string()),
-                    value: "anotherVar".to_string(),
                 })),
             })],
         };
