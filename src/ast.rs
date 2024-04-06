@@ -227,6 +227,40 @@ impl Expression for PrefixExpression {
     fn expression_node(&self) {}
 }
 
+pub struct InfixExpression {
+    pub token: Token,
+    pub right: Option<Box<dyn Expression>>,
+    pub operator: Token,
+    pub left: Option<Box<dyn Expression>>,
+}
+
+impl Debug for InfixExpression {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.token_literal())
+    }
+}
+
+impl Node for InfixExpression {
+    fn token_literal(&self) -> String {
+        format!("{:?}", self.token)
+    }
+
+    fn string(&self) -> String {
+        let right = &self.right.as_ref().expect("To have a right");
+        let left = &self.left.as_ref().expect("To have a left");
+        format!(
+            "({:?}, {:?}, {:?})",
+            left.to_string(),
+            self.operator,
+            right.string(),
+        )
+    }
+}
+
+impl Expression for InfixExpression {
+    fn expression_node(&self) {}
+}
+
 #[cfg(test)]
 mod ast_tests {
 
