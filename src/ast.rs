@@ -21,6 +21,12 @@ pub trait Statement: Node {
     fn statement_node(&self);
 }
 
+impl Debug for dyn Statement {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.token_literal())
+    }
+}
+
 pub trait Expression: Node {
     fn expression_node(&self);
 }
@@ -37,6 +43,7 @@ impl Display for dyn Expression {
     }
 }
 
+#[derive(Debug)]
 pub struct Program {
     pub statements: Vec<Box<dyn Statement>>,
 }
@@ -53,17 +60,20 @@ impl Program {
     }
 }
 
+#[derive(Debug)]
 pub struct LetStatement {
     pub token: Token,
     pub name: Identifier,
     pub value: Option<Box<dyn Expression>>,
 }
 
+#[derive(Debug)]
 pub struct ReturnStatement {
     pub token: Token,
     pub return_value: Option<Box<dyn Expression>>,
 }
 
+#[derive(Debug)]
 pub struct ExpressionStatement {
     pub token: Token,
     pub expression: Option<Box<dyn Expression>>,
@@ -126,8 +136,8 @@ impl Node for ExpressionStatement {
 
     fn string(&self) -> String {
         match &self.expression {
-            Some(expression) => expression.to_string(),
-            None => panic!("Fail stringifying expression"),
+            Some(expression) => expression.string(),
+            None => "".to_string(),
         }
     }
 }
@@ -144,14 +154,9 @@ impl Statement for ExpressionStatement {
     fn statement_node(&self) {}
 }
 
+#[derive(Debug)]
 pub struct Identifier {
     pub token: Token,
-}
-
-impl Debug for Identifier {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.token_literal())
-    }
 }
 
 impl Node for Identifier {
@@ -174,14 +179,9 @@ impl Expression for Identifier {
     fn expression_node(&self) {}
 }
 
+#[derive(Debug)]
 pub struct IntegerLiteral {
     pub token: Token,
-}
-
-impl Debug for IntegerLiteral {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.token_literal())
-    }
 }
 
 impl Node for IntegerLiteral {
@@ -190,7 +190,12 @@ impl Node for IntegerLiteral {
     }
 
     fn string(&self) -> String {
-        format!("{:?}", self.token)
+        let int_string = match &self.token {
+            Token::Int(value) => value.to_string(),
+            _ => panic!("Fail stringifying expression"),
+        };
+
+        int_string
     }
 }
 
@@ -198,16 +203,11 @@ impl Expression for IntegerLiteral {
     fn expression_node(&self) {}
 }
 
+#[derive(Debug)]
 pub struct PrefixExpression {
     pub token: Token,
     pub right: Option<Box<dyn Expression>>,
     pub operator: Token,
-}
-
-impl Debug for PrefixExpression {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.token_literal())
-    }
 }
 
 impl Node for PrefixExpression {
@@ -217,7 +217,7 @@ impl Node for PrefixExpression {
 
     fn string(&self) -> String {
         if let Some(right) = &self.right {
-            return format!("({:?}, {:?})", self.operator, right.string());
+            return format!("({}{})", self.operator.string(), right.string());
         };
         format!("({:?})", self.operator)
     }
@@ -227,17 +227,12 @@ impl Expression for PrefixExpression {
     fn expression_node(&self) {}
 }
 
+#[derive(Debug)]
 pub struct InfixExpression {
     pub token: Token,
     pub right: Option<Box<dyn Expression>>,
     pub operator: Token,
     pub left: Option<Box<dyn Expression>>,
-}
-
-impl Debug for InfixExpression {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.token_literal())
-    }
 }
 
 impl Node for InfixExpression {
@@ -249,9 +244,9 @@ impl Node for InfixExpression {
         let right = &self.right.as_ref().expect("To have a right");
         let left = &self.left.as_ref().expect("To have a left");
         format!(
-            "({:?}, {:?}, {:?})",
-            left.to_string(),
-            self.operator,
+            "({} {} {})",
+            left.string(),
+            self.operator.string(),
             right.string(),
         )
     }

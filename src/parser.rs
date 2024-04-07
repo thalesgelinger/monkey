@@ -152,10 +152,8 @@ impl Parser {
             }
         };
 
-        println!("Left exp: {:?}", left_exp);
-
         while self.peek_token != Token::Semicolon && precedence < self.peek_precendence() {
-            left_exp = self.infix_parse_fns(left_exp)
+            left_exp = self.infix_parse_fns(left_exp);
         }
 
         left_exp
@@ -300,7 +298,7 @@ mod parser_tests {
 
     use super::Parser;
     use crate::ast::{
-        ExpressionStatement, Identifier, InfixExpression, IntegerLiteral, PrefixExpression,
+        ExpressionStatement, Identifier, InfixExpression, IntegerLiteral, Node, PrefixExpression,
     };
     use crate::lexer::Lexer;
     use crate::token::Token;
@@ -465,6 +463,7 @@ mod parser_tests {
             let lexer = Lexer::new(input.into());
             let mut parser = Parser::new(lexer);
             let program = parser.parse_program();
+
             check_parse_errors(parser.errors);
 
             assert_eq!(program.statements.len(), 1);
@@ -505,6 +504,37 @@ mod parser_tests {
 
             assert_eq!(right.token, right_token);
             assert_eq!(left.token, left_token);
+        }
+    }
+
+    #[test]
+    fn test_operator_precedence_parsing() {
+        let tests = vec![
+            ("-a * b", "((-a) * b)"),
+            ("!-a", "(!(-a))"),
+            ("a + b + c", "((a + b) + c)"),
+            ("a + b - c", "((a + b) - c)"),
+            ("a * b * c", "((a * b) * c)"),
+            ("a * b / c", "((a * b) / c)"),
+            ("a + b / c", "(a + (b / c))"),
+            ("a + b * c + d / e - f", "(((a + (b * c)) + (d / e)) - f)"),
+            ("3 + 4; -5 * 5", "(3 + 4)((-5) * 5)"),
+            ("5 > 4 == 3 < 4", "((5 > 4) == (3 < 4))"),
+            ("5 < 4 != 3 > 4", "((5 < 4) != (3 > 4))"),
+            (
+                "3 + 4 * 5 == 3 * 1 + 4 * 5",
+                "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))",
+            ),
+        ];
+
+        for (input, expected) in tests {
+            let lexer = Lexer::new(input.into());
+            let mut parser = Parser::new(lexer);
+            let program = parser.parse_program();
+            check_parse_errors(parser.errors);
+
+            let actual = program.string();
+            assert_eq!(actual, expected)
         }
     }
 

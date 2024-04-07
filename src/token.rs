@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 #[warn(dead_code)]
 #[derive(Debug, PartialEq, Clone, Eq, Hash)]
 pub enum Token {
@@ -39,4 +41,23 @@ pub enum Token {
     If,
     Else,
     Return,
+}
+
+impl Token {
+    pub fn string(&self) -> String {
+        match self {
+            Token::Assign => "=".to_string(),
+            Token::Bang => "!".to_string(),
+            Token::Asterisk => "*".to_string(),
+            Token::Plus => "+".to_string(),
+            Token::Minus => "-".to_string(),
+            Token::Semicolon => ";".to_string(),
+            Token::Slash => "/".to_string(),
+            Token::Eq => "==".to_string(),
+            Token::NotEq => "!=".to_string(),
+            Token::Gt => ">".to_string(),
+            Token::Lt => "<".to_string(),
+            t => format!("{:?}", t),
+        }
+    }
 }

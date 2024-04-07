@@ -256,7 +256,6 @@ mod lexer_tests {
 
         for test_token in tests {
             let tok = lexer.next_token();
-            println!("expected: {:?}, received: {:?}", test_token, tok);
             assert_eq!(tok, test_token)
         }
     }
