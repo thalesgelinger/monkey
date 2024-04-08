@@ -256,6 +256,31 @@ impl Expression for InfixExpression {
     fn expression_node(&self) {}
 }
 
+#[derive(Debug)]
+pub struct Boolean {
+    pub token: Token,
+}
+
+impl Node for Boolean {
+    fn token_literal(&self) -> String {
+        format!("{:?}", self.token)
+    }
+
+    fn string(&self) -> String {
+        let bool_string = match &self.token {
+            Token::True => true.to_string(),
+            Token::False => false.to_string(),
+            _ => panic!("Fail stringifying expression"),
+        };
+
+        bool_string
+    }
+}
+
+impl Expression for Boolean {
+    fn expression_node(&self) {}
+}
+
 #[cfg(test)]
 mod ast_tests {
 

@@ -1,6 +1,6 @@
 use crate::ast::{
-    Expression, ExpressionStatement, Identifier, InfixExpression, IntegerLiteral, LetStatement,
-    PrefixExpression, Program, ReturnStatement, Statement,
+    Boolean, Expression, ExpressionStatement, Identifier, InfixExpression, IntegerLiteral,
+    LetStatement, PrefixExpression, Program, ReturnStatement, Statement,
 };
 use crate::lexer::Lexer;
 use crate::token::Token;
@@ -176,6 +176,16 @@ impl Parser {
             }
             Token::Bang => self.parse_prefix_expression(),
             Token::Minus => self.parse_prefix_expression(),
+            Token::True => {
+                let boolean = Boolean { token: Token::True };
+                Some(Box::new(boolean))
+            }
+            Token::False => {
+                let boolean = Boolean {
+                    token: Token::False,
+                };
+                Some(Box::new(boolean))
+            }
 
             _ => None,
         }
@@ -298,7 +308,8 @@ mod parser_tests {
 
     use super::Parser;
     use crate::ast::{
-        ExpressionStatement, Identifier, InfixExpression, IntegerLiteral, Node, PrefixExpression,
+        Boolean, Expression, ExpressionStatement, Identifier, InfixExpression, IntegerLiteral,
+        PrefixExpression,
     };
     use crate::lexer::Lexer;
     use crate::token::Token;
@@ -372,6 +383,7 @@ mod parser_tests {
 
         assert_eq!(ident.token, Token::Ident(String::from("foobar")));
     }
+
     #[test]
     fn test_integer_literal_expression() {
         let input = "5;";
@@ -403,11 +415,45 @@ mod parser_tests {
     }
 
     #[test]
+    fn test_boolean_expression() {
+        let tests = vec![("true;", Token::True), ("false;", Token::False)];
+
+        for (input, expected) in tests {
+            let lexer = Lexer::new(input.into());
+            let mut parser = Parser::new(lexer);
+            let program = parser.parse_program();
+            check_parse_errors(parser.errors);
+            assert_eq!(program.statements.len(), 1);
+
+            let stmt = match program.statements.first() {
+                Some(s) => match s.as_any().downcast_ref::<ExpressionStatement>() {
+                    Some(statement) => Box::new(statement),
+                    None => panic!("Error creating ExpressionStatement"),
+                },
+                None => panic!("There's no statement here"),
+            };
+
+            let ident = match stmt.expression.as_ref() {
+                Some(e) => match e.as_any().downcast_ref::<Boolean>() {
+                    Some(expression) => Box::new(expression),
+                    None => panic!("Error casting expression identifier"),
+                },
+                None => panic!("There's no expression"),
+            };
+
+            assert_eq!(ident.token, expected);
+        }
+    }
+
+    #[test]
     fn test_parsing_prefix_expressions() {
         let prefix_tests = vec![
             ("!5;", Token::Bang, Token::Int(5)),
             ("-15;", Token::Minus, Token::Int(15)),
+            ("!true;", Token::Bang, Token::True),
+            ("!false;", Token::Bang, Token::False),
         ];
+
         for (input, operator, value) in prefix_tests {
             let lexer = Lexer::new(input.into());
             let mut parser = Parser::new(lexer);
@@ -434,15 +480,7 @@ mod parser_tests {
 
             assert_eq!(expression.operator, operator);
 
-            let right = match expression.right.as_ref() {
-                Some(e) => match e.as_any().downcast_ref::<IntegerLiteral>() {
-                    Some(expression) => Box::new(expression),
-                    None => panic!("Error casting expression identifier"),
-                },
-                None => panic!("There's no expression"),
-            };
-
-            assert_eq!(right.token, value);
+            test_expression(&expression.right, value);
         }
     }
 
@@ -457,6 +495,9 @@ mod parser_tests {
             ("5 < 5;", Token::Int(5), Token::Lt, Token::Int(5)),
             ("5 == 5;", Token::Int(5), Token::Eq, Token::Int(5)),
             ("5 != 5;", Token::Int(5), Token::NotEq, Token::Int(5)),
+            ("true == true", Token::True, Token::Eq, Token::True),
+            ("true != false", Token::True, Token::NotEq, Token::False),
+            ("false == false", Token::False, Token::Eq, Token::False),
         ];
 
         for (input, left_token, operator, right_token) in infix_tests {
@@ -486,25 +527,34 @@ mod parser_tests {
 
             assert_eq!(expression.operator, operator);
 
-            let right = match expression.right.as_ref() {
-                Some(e) => match e.as_any().downcast_ref::<IntegerLiteral>() {
-                    Some(expression) => Box::new(expression),
-                    None => panic!("Error casting expression identifier"),
-                },
-                None => panic!("There's no expression"),
-            };
-
-            let left = match expression.left.as_ref() {
-                Some(e) => match e.as_any().downcast_ref::<IntegerLiteral>() {
-                    Some(expression) => Box::new(expression),
-                    None => panic!("Error casting expression identifier"),
-                },
-                None => panic!("There's no expression"),
-            };
-
-            assert_eq!(right.token, right_token);
-            assert_eq!(left.token, left_token);
+            test_expression(&expression.right, right_token);
+            test_expression(&expression.left, left_token);
         }
+    }
+
+    fn test_expression(expression: &Option<Box<dyn Expression>>, expected_token: Token) {
+        match expression.as_ref() {
+            Some(e) => match expected_token {
+                Token::Int(_) => {
+                    let e = match e.as_any().downcast_ref::<IntegerLiteral>() {
+                        Some(expression) => Box::new(expression),
+                        None => panic!("Error casting expression integer"),
+                    };
+
+                    assert_eq!(e.token, expected_token);
+                }
+                Token::True | Token::False => {
+                    let e = match e.as_any().downcast_ref::<Boolean>() {
+                        Some(expression) => Box::new(expression),
+                        None => panic!("Error casting expression boolean"),
+                    };
+
+                    assert_eq!(e.token, expected_token);
+                }
+                _ => panic!("Test not implemented yet"),
+            },
+            None => panic!("There's no expression"),
+        };
     }
 
     #[test]
@@ -525,6 +575,10 @@ mod parser_tests {
                 "3 + 4 * 5 == 3 * 1 + 4 * 5",
                 "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))",
             ),
+            ("true", "true"),
+            ("false", "false"),
+            ("3 > 5 == false", "((3 > 5) == false)"),
+            ("3 < 5 == true", "((3 < 5) == true)"),
         ];
 
         for (input, expected) in tests {
