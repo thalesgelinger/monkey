@@ -1,6 +1,7 @@
 use crate::ast::{
-    Boolean, Expression, ExpressionStatement, Identifier, InfixExpression, IntegerLiteral,
-    LetStatement, PrefixExpression, Program, ReturnStatement, Statement,
+    BlockStatement, Boolean, Expression, ExpressionStatement, Identifier, IfExpression,
+    InfixExpression, IntegerLiteral, LetStatement, PrefixExpression, Program, ReturnStatement,
+    Statement,
 };
 use crate::lexer::Lexer;
 use crate::token::Token;
@@ -131,14 +132,14 @@ impl Parser {
     fn parse_expression_statement(&mut self) -> Option<Box<dyn Statement>> {
         let expression = self.parse_expression(Precedence::Lowest);
 
+        if self.peek_token == Token::Semicolon {
+            self.next_token()
+        }
+
         let statement = ExpressionStatement {
             token: self.current_token.clone(),
             expression,
         };
-
-        if self.peek_token == Token::Semicolon {
-            self.next_token()
-        }
 
         Some(Box::new(statement))
     }
@@ -187,7 +188,7 @@ impl Parser {
                 Some(Box::new(boolean))
             }
             Token::Lparen => self.parse_grouped_expression(),
-
+            Token::If => self.parse_if_expression(),
             _ => None,
         }
     }
@@ -324,6 +325,61 @@ impl Parser {
 
         exp
     }
+
+    fn parse_if_expression(&mut self) -> Option<Box<dyn Expression>> {
+        let token = &self.current_token.clone();
+
+        if !self.expect_peek(Token::Lparen) {
+            return None;
+        }
+
+        self.next_token();
+
+        let condition = match self.parse_expression(Precedence::Lowest) {
+            Some(condition) => condition,
+            None => panic!("Missing condition for if statement"),
+        };
+
+        if !self.expect_peek(Token::Rparen) {
+            return None;
+        }
+
+        if !self.expect_peek(Token::Lbrace) {
+            return None;
+        }
+
+        let consequence = self.parse_block_statement();
+
+        let expression = IfExpression {
+            token: token.clone(),
+            condition,
+            consequence,
+            alternative: None,
+        };
+        Some(Box::new(expression))
+    }
+
+    fn parse_block_statement(&mut self) -> BlockStatement {
+        let token = &self.current_token.clone();
+        let mut statements: Vec<Box<dyn Statement>> = vec![];
+
+        self.next_token();
+
+        while self.current_token != Token::Rbrace && self.current_token != Token::Eof {
+            match self.parse_statement() {
+                Some(stmt) => statements.push(stmt),
+                None => continue,
+            };
+            self.next_token();
+        }
+
+        let block = BlockStatement {
+            token: token.clone(),
+            statements,
+        };
+
+        block
+    }
 }
 
 #[cfg(test)]
@@ -331,8 +387,8 @@ mod parser_tests {
 
     use super::Parser;
     use crate::ast::{
-        Boolean, Expression, ExpressionStatement, Identifier, InfixExpression, IntegerLiteral,
-        PrefixExpression,
+        Boolean, Expression, ExpressionStatement, Identifier, IfExpression, InfixExpression,
+        IntegerLiteral, PrefixExpression,
     };
     use crate::lexer::Lexer;
     use crate::token::Token;
@@ -618,6 +674,118 @@ mod parser_tests {
             let actual = program.string();
             assert_eq!(actual, expected)
         }
+    }
+
+    #[test]
+    fn test_if_expression() {
+        let input = "if (x < y) { x }";
+
+        let lexer = Lexer::new(input.into());
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program();
+        check_parse_errors(parser.errors);
+
+        assert_eq!(program.statements.len(), 1);
+
+        let stmt = match program.statements.first() {
+            Some(s) => match s.as_any().downcast_ref::<ExpressionStatement>() {
+                Some(statement) => Box::new(statement),
+                None => panic!("Error creating ExpressionStatement"),
+            },
+            None => panic!("There's no statement here"),
+        };
+
+        let expression = match stmt.expression.as_ref() {
+            Some(e) => match e.as_any().downcast_ref::<IfExpression>() {
+                Some(expression) => Box::new(expression),
+                None => panic!("Error casting expression if"),
+            },
+            None => panic!("There's no expression"),
+        };
+
+        assert_eq!(expression.condition.string(), "(x < y)");
+
+        assert_eq!(expression.consequence.statements.len(), 1);
+
+        let consequence = match expression.consequence.statements.first() {
+            Some(s) => match s.as_any().downcast_ref::<ExpressionStatement>() {
+                Some(statement) => Box::new(statement),
+                None => panic!("Error creating consequence ExpressionStatement"),
+            },
+            None => panic!("There's no statement here"),
+        };
+
+        assert_eq!(consequence.token, Token::Ident("x".to_string()));
+
+        if let Some(_) = &expression.alternative {
+            panic!("Alternative should be null");
+        }
+    }
+
+    #[test]
+    fn test_if_else_expression() {
+        let input = "if (x < y) { x } else { y }";
+
+        let lexer = Lexer::new(input.into());
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program();
+        check_parse_errors(parser.errors);
+
+        assert_eq!(program.statements.len(), 1);
+
+        let stmt = match program.statements.first() {
+            Some(s) => match s.as_any().downcast_ref::<ExpressionStatement>() {
+                Some(statement) => Box::new(statement),
+                None => panic!("Error creating ExpressionStatement"),
+            },
+            None => panic!("There's no statement here"),
+        };
+
+        let expression = match stmt.expression.as_ref() {
+            Some(e) => match e.as_any().downcast_ref::<IfExpression>() {
+                Some(expression) => Box::new(expression),
+                None => panic!("Error casting expression if"),
+            },
+            None => panic!("There's no expression"),
+        };
+
+        assert_eq!(expression.condition.string(), "(x < y)");
+
+        assert_eq!(expression.consequence.statements.len(), 1);
+
+        let consequence = match program.statements.first() {
+            Some(s) => match s.as_any().downcast_ref::<ExpressionStatement>() {
+                Some(statement) => Box::new(statement),
+                None => panic!("Error creating consequence ExpressionStatement"),
+            },
+            None => panic!("There's no statement here"),
+        };
+
+        assert_eq!(consequence.token, Token::Ident("x".to_string()));
+
+        let alternative = match &expression.alternative {
+            Some(block) => match block
+                .statements
+                .first()
+                .unwrap()
+                .as_any()
+                .downcast_ref::<ExpressionStatement>()
+            {
+                Some(statement) => Box::new(statement),
+                None => panic!("Error creating ExpressionStatement"),
+            },
+            None => panic!("There's no statement here"),
+        };
+
+        let alternative = match alternative.expression.as_ref() {
+            Some(e) => match e.as_any().downcast_ref::<ExpressionStatement>() {
+                Some(expression) => Box::new(expression),
+                None => panic!("Error casting expression if"),
+            },
+            None => panic!("There's no expression"),
+        };
+
+        assert_eq!(alternative.token, Token::Ident("y".to_string()));
     }
 
     fn check_parse_errors(errors: Vec<String>) {
