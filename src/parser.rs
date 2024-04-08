@@ -350,6 +350,24 @@ impl Parser {
 
         let consequence = self.parse_block_statement();
 
+        if self.peek_token == Token::Else {
+            self.next_token();
+
+            if !self.expect_peek(Token::Lbrace) {
+                return None;
+            }
+
+            let alternative = Some(self.parse_block_statement());
+
+            let expression = IfExpression {
+                token: token.clone(),
+                condition,
+                consequence,
+                alternative,
+            };
+            return Some(Box::new(expression));
+        }
+
         let expression = IfExpression {
             token: token.clone(),
             condition,
@@ -753,7 +771,7 @@ mod parser_tests {
 
         assert_eq!(expression.consequence.statements.len(), 1);
 
-        let consequence = match program.statements.first() {
+        let consequence = match expression.consequence.statements.first() {
             Some(s) => match s.as_any().downcast_ref::<ExpressionStatement>() {
                 Some(statement) => Box::new(statement),
                 None => panic!("Error creating consequence ExpressionStatement"),
@@ -778,9 +796,9 @@ mod parser_tests {
         };
 
         let alternative = match alternative.expression.as_ref() {
-            Some(e) => match e.as_any().downcast_ref::<ExpressionStatement>() {
+            Some(e) => match e.as_any().downcast_ref::<Identifier>() {
                 Some(expression) => Box::new(expression),
-                None => panic!("Error casting expression if"),
+                None => panic!("Error casting expression else"),
             },
             None => panic!("There's no expression"),
         };
