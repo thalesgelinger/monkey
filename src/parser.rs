@@ -186,6 +186,7 @@ impl Parser {
                 };
                 Some(Box::new(boolean))
             }
+            Token::Lparen => self.parse_grouped_expression(),
 
             _ => None,
         }
@@ -300,6 +301,28 @@ impl Parser {
         expression.right = self.parse_expression(precedence);
 
         Some(Box::new(expression))
+    }
+
+    fn expect_peek(&mut self, token: Token) -> bool {
+        if self.peek_token == token {
+            self.next_token();
+            true
+        } else {
+            self.peek_error(token);
+            false
+        }
+    }
+
+    fn parse_grouped_expression(&mut self) -> Option<Box<dyn Expression>> {
+        self.next_token();
+
+        let exp = self.parse_expression(Precedence::Lowest);
+
+        if !self.expect_peek(Token::Rparen) {
+            return None;
+        }
+
+        exp
     }
 }
 
@@ -579,6 +602,11 @@ mod parser_tests {
             ("false", "false"),
             ("3 > 5 == false", "((3 > 5) == false)"),
             ("3 < 5 == true", "((3 < 5) == true)"),
+            ("1 + (2 + 3) + 4", "((1 + (2 + 3)) + 4)"),
+            ("(5 + 5) * 2", "((5 + 5) * 2)"),
+            ("2 / (5 + 5)", "(2 / (5 + 5))"),
+            ("-(5 + 5)", "(-(5 + 5))"),
+            ("!(true == true)", "(!(true == true))"),
         ];
 
         for (input, expected) in tests {

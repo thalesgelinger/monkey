@@ -1,5 +1,3 @@
-use std::fmt::Display;
-
 #[warn(dead_code)]
 #[derive(Debug, PartialEq, Clone, Eq, Hash)]
 pub enum Token {
@@ -57,6 +55,11 @@ impl Token {
             Token::NotEq => "!=".to_string(),
             Token::Gt => ">".to_string(),
             Token::Lt => "<".to_string(),
+            Token::Lparen => "(".to_string(),
+            Token::Rparen => ")".to_string(),
+            Token::False => "false".to_string(),
+            Token::True => "true".to_string(),
+            Token::Comma => ",".to_string(),
             t => format!("{:?}", t),
         }
     }
