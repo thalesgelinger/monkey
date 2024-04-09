@@ -463,9 +463,9 @@ mod parser_tests {
 
     use super::Parser;
     use crate::ast::{
-        BlockStatement, Boolean, Expression, ExpressionStatement, FunctionLiteral, Identifier,
-        IfExpression, InfixExpression, IntegerLiteral, LetStatement, PrefixExpression, Program,
-        ReturnStatement, Statement,
+        BlockStatement, Boolean, CallExpression, Expression, ExpressionStatement, FunctionLiteral,
+        Identifier, IfExpression, InfixExpression, IntegerLiteral, LetStatement, PrefixExpression,
+        Program, ReturnStatement, Statement,
     };
     use crate::lexer::Lexer;
     use crate::token::Token;
@@ -926,10 +926,20 @@ mod parser_tests {
         assert_eq!(function.body.statements.len(), 1);
         let first = function.body.statements.first();
 
-        test_infix_expression(first.as_ref().expect("There''"));
+        test_infix_expression(
+            first.as_ref().expect("There''"),
+            Token::Ident("x".to_string()),
+            Token::Plus,
+            Token::Ident("y".to_string()),
+        );
     }
 
-    fn test_infix_expression(first: &Box<dyn Statement>) {
+    fn test_infix_expression(
+        first: &Box<dyn Statement>,
+        left: Token,
+        operator: Token,
+        right: Token,
+    ) {
         let body_stmt = match first.as_any().downcast_ref::<ExpressionStatement>() {
             Some(expression) => Box::new(expression),
             None => panic!("Error casting expression function expression"),
@@ -943,9 +953,77 @@ mod parser_tests {
             None => panic!("There's no expression"),
         };
 
-        test_expression(&infix.left, Token::Ident("x".to_string()));
-        assert_eq!(infix.operator, Token::Plus);
-        test_expression(&infix.right, Token::Ident("y".to_string()));
+        test_expression(&infix.left, left);
+        assert_eq!(infix.operator, operator);
+        test_expression(&infix.right, right);
+    }
+
+    #[test]
+    fn test_call_expression_parsing() {
+        let input = "add(1, 2 * 3, 4 + 5);";
+
+        let lexer = Lexer::new(input.into());
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program();
+        check_parse_errors(parser.errors);
+
+        assert_eq!(program.statements.len(), 1);
+
+        let stmt = match program.statements.first() {
+            Some(s) => {
+                let cast = s.as_any().downcast_ref::<ExpressionStatement>();
+                match cast {
+                    Some(statement) => Box::new(statement),
+                    None => panic!("Error creating ExpressionStatement"),
+                }
+            }
+            None => panic!("There's no statement here"),
+        };
+
+        let call = match stmt.expression.as_ref() {
+            Some(e) => match e.as_any().downcast_ref::<CallExpression>() {
+                Some(function) => Box::new(function),
+                None => panic!("Error casting function if"),
+            },
+            None => panic!("There's no expression"),
+        };
+
+        assert_eq!(
+            call.function.token_literal(),
+            format!("{:?}", Token::Ident("add".to_string()))
+        );
+
+        assert_eq!(call.arguments.len(), 3);
+
+        assert_eq!(
+            call.arguments
+                .get(0)
+                .expect("There's no argumento 0")
+                .token_literal(),
+            format!("{:?}", Token::Int(1))
+        );
+
+        let second = match call.arguments.get(1) {
+            Some(e) => match e.as_any().downcast_ref::<InfixExpression>() {
+                Some(function) => Box::new(function),
+                None => panic!("Error casting function if"),
+            },
+            None => panic!("There's no expression"),
+        };
+        test_expression(&second.left, Token::Int(2));
+        assert_eq!(second.operator, Token::Asterisk);
+        test_expression(&second.right, Token::Int(3));
+
+        let third = match call.arguments.get(2) {
+            Some(e) => match e.as_any().downcast_ref::<InfixExpression>() {
+                Some(function) => Box::new(function),
+                None => panic!("Error casting function if"),
+            },
+            None => panic!("There's no expression"),
+        };
+        test_expression(&third.left, Token::Int(4));
+        assert_eq!(third.operator, Token::Plus);
+        test_expression(&third.right, Token::Int(5));
     }
 
     fn check_parse_errors(errors: Vec<String>) {

@@ -376,6 +376,40 @@ impl Expression for FunctionLiteral {
     fn expression_node(&self) {}
 }
 
+#[derive(Debug)]
+pub struct CallExpression {
+    pub token: Token,
+    pub function: Box<dyn Expression>,
+    pub arguments: Vec<Box<dyn Expression>>,
+}
+
+impl Node for CallExpression {
+    fn token_literal(&self) -> String {
+        format!("{:?}", self.token)
+    }
+
+    fn string(&self) -> String {
+        let mut out = String::new();
+
+        let mut args: Vec<String> = vec![];
+
+        for arg in &self.arguments {
+            args.push(arg.string());
+        }
+
+        out.push_str(&self.function.string());
+        out.push_str("(");
+        out.push_str(&args.join(","));
+        out.push_str(") ");
+
+        out
+    }
+}
+
+impl Expression for CallExpression {
+    fn expression_node(&self) {}
+}
+
 #[cfg(test)]
 mod ast_tests {
 
