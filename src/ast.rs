@@ -154,7 +154,7 @@ impl Statement for ExpressionStatement {
     fn statement_node(&self) {}
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Identifier {
     pub token: Token,
 }
@@ -338,6 +338,41 @@ impl Node for BlockStatement {
 }
 
 impl Expression for BlockStatement {
+    fn expression_node(&self) {}
+}
+
+#[derive(Debug)]
+pub struct FunctionLiteral {
+    pub token: Token,
+    pub parameters: Vec<Identifier>,
+    pub body: BlockStatement,
+}
+
+impl Node for FunctionLiteral {
+    fn token_literal(&self) -> String {
+        format!("{:?}", self.token)
+    }
+
+    fn string(&self) -> String {
+        let mut out = String::new();
+
+        let mut params: Vec<String> = vec![];
+
+        for param in &self.parameters {
+            params.push(param.string());
+        }
+
+        out.push_str(&self.token_literal());
+        out.push_str("(");
+        out.push_str(&params.join(","));
+        out.push_str(") ");
+        out.push_str(&self.body.string());
+
+        out
+    }
+}
+
+impl Expression for FunctionLiteral {
     fn expression_node(&self) {}
 }
 
