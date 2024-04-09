@@ -1,7 +1,7 @@
 use crate::ast::{
-    BlockStatement, Boolean, Expression, ExpressionStatement, Identifier, IfExpression,
-    InfixExpression, IntegerLiteral, LetStatement, PrefixExpression, Program, ReturnStatement,
-    Statement,
+    BlockStatement, Boolean, Expression, ExpressionStatement, FunctionLiteral, Identifier,
+    IfExpression, InfixExpression, IntegerLiteral, LetStatement, PrefixExpression, Program,
+    ReturnStatement, Statement,
 };
 use crate::lexer::Lexer;
 use crate::token::Token;
@@ -189,6 +189,7 @@ impl Parser {
             }
             Token::Lparen => self.parse_grouped_expression(),
             Token::If => self.parse_if_expression(),
+            Token::Function => self.parse_function_literal(),
             _ => None,
         }
     }
@@ -398,6 +399,63 @@ impl Parser {
 
         block
     }
+
+    fn parse_function_literal(&mut self) -> Option<Box<dyn Expression>> {
+        let token = self.current_token.clone();
+
+        if !self.expect_peek(Token::Lparen) {
+            return None;
+        }
+
+        let parameters = self
+            .parse_function_parameters()
+            .expect("Syntax error on funciton declaration");
+
+        if !self.expect_peek(Token::Lbrace) {
+            return None;
+        }
+
+        let body = self.parse_block_statement();
+
+        let lit = FunctionLiteral {
+            token,
+            parameters,
+            body,
+        };
+
+        Some(Box::new(lit))
+    }
+
+    fn parse_function_parameters(&mut self) -> Option<Vec<Identifier>> {
+        let mut identifiers: Vec<Identifier> = vec![];
+
+        if self.peek_token == Token::Rparen {
+            self.next_token();
+            return Some(identifiers);
+        }
+
+        self.next_token();
+
+        let ident = Identifier {
+            token: self.current_token.clone(),
+        };
+        identifiers.push(ident);
+
+        while self.peek_token == Token::Comma {
+            self.next_token();
+            self.next_token();
+            let ident = Identifier {
+                token: self.current_token.clone(),
+            };
+            identifiers.push(ident);
+        }
+
+        if !self.expect_peek(Token::Rparen) {
+            return None;
+        }
+
+        Some(identifiers)
+    }
 }
 
 #[cfg(test)]
@@ -405,8 +463,9 @@ mod parser_tests {
 
     use super::Parser;
     use crate::ast::{
-        Boolean, Expression, ExpressionStatement, Identifier, IfExpression, InfixExpression,
-        IntegerLiteral, PrefixExpression,
+        BlockStatement, Boolean, Expression, ExpressionStatement, FunctionLiteral, Identifier,
+        IfExpression, InfixExpression, IntegerLiteral, LetStatement, PrefixExpression, Program,
+        ReturnStatement, Statement,
     };
     use crate::lexer::Lexer;
     use crate::token::Token;
@@ -640,6 +699,14 @@ mod parser_tests {
 
                     assert_eq!(e.token, expected_token);
                 }
+                Token::Ident(_) => {
+                    let e = match e.as_any().downcast_ref::<Identifier>() {
+                        Some(expression) => Box::new(expression),
+                        None => panic!("Error casting expression integer"),
+                    };
+
+                    assert_eq!(e.token, expected_token);
+                }
                 Token::True | Token::False => {
                     let e = match e.as_any().downcast_ref::<Boolean>() {
                         Some(expression) => Box::new(expression),
@@ -648,7 +715,7 @@ mod parser_tests {
 
                     assert_eq!(e.token, expected_token);
                 }
-                _ => panic!("Test not implemented yet"),
+                _ => panic!("Test not implemented yet for token: {:?}", expected_token),
             },
             None => panic!("There's no expression"),
         };
@@ -804,6 +871,81 @@ mod parser_tests {
         };
 
         assert_eq!(alternative.token, Token::Ident("y".to_string()));
+    }
+
+    #[test]
+    fn test_function_literal_parsing() {
+        let input = "fn(x, y) { x + y; }";
+
+        let lexer = Lexer::new(input.into());
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program();
+        check_parse_errors(parser.errors);
+
+        assert_eq!(program.statements.len(), 1);
+
+        let stmt = match program.statements.first() {
+            Some(s) => {
+                let cast = s.as_any().downcast_ref::<ExpressionStatement>();
+                match cast {
+                    Some(statement) => Box::new(statement),
+                    None => panic!("Error creating ExpressionStatement"),
+                }
+            }
+            None => panic!("There's no statement here"),
+        };
+
+        let function = match stmt.expression.as_ref() {
+            Some(e) => match e.as_any().downcast_ref::<FunctionLiteral>() {
+                Some(function) => Box::new(function),
+                None => panic!("Error casting function if"),
+            },
+            None => panic!("There's no expression"),
+        };
+
+        assert_eq!(function.parameters.len(), 2);
+        assert_eq!(
+            function
+                .parameters
+                .get(0)
+                .expect("There's no first parameter"),
+            &Identifier {
+                token: Token::Ident("x".to_string())
+            }
+        );
+        assert_eq!(
+            function
+                .parameters
+                .get(1)
+                .expect("There's no first parameter"),
+            &Identifier {
+                token: Token::Ident("y".to_string())
+            }
+        );
+
+        assert_eq!(function.body.statements.len(), 1);
+        let first = function.body.statements.first();
+
+        test_infix_expression(first.as_ref().expect("There''"));
+    }
+
+    fn test_infix_expression(first: &Box<dyn Statement>) {
+        let body_stmt = match first.as_any().downcast_ref::<ExpressionStatement>() {
+            Some(expression) => Box::new(expression),
+            None => panic!("Error casting expression function expression"),
+        };
+
+        let infix = match body_stmt.expression.as_ref() {
+            Some(e) => match e.as_any().downcast_ref::<InfixExpression>() {
+                Some(function) => Box::new(function),
+                None => panic!("Error casting function if"),
+            },
+            None => panic!("There's no expression"),
+        };
+
+        test_expression(&infix.left, Token::Ident("x".to_string()));
+        assert_eq!(infix.operator, Token::Plus);
+        test_expression(&infix.right, Token::Ident("y".to_string()));
     }
 
     fn check_parse_errors(errors: Vec<String>) {
