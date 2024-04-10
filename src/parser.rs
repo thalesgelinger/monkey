@@ -85,17 +85,18 @@ impl Parser {
             _ => return None,
         }
 
-        // TODO: We're skipping the expressions until we
-        // encounter a semicolon
+        self.next_token();
 
-        while self.current_token != Token::Semicolon {
-            self.next_token()
+        let value = self.parse_expression(Precedence::Lowest);
+
+        if self.peek_token == Token::Semicolon {
+            self.next_token();
         }
 
         let statement = LetStatement {
             token: let_token,
             name,
-            value: None,
+            value,
         };
 
         Some(Box::new(statement))
@@ -114,16 +115,15 @@ impl Parser {
 
         self.next_token();
 
-        // TODO: We're skipping the expressions until we
-        // encounter a semicolon
+        let return_value = self.parse_expression(Precedence::Lowest);
 
-        while self.current_token != Token::Semicolon {
-            self.next_token()
+        if self.peek_token == Token::Semicolon {
+            self.next_token();
         }
 
         let statement = ReturnStatement {
             token: return_token,
-            return_value: None,
+            return_value,
         };
 
         Some(Box::new(statement))
@@ -516,50 +516,143 @@ mod parser_tests {
     use super::Parser;
     use crate::ast::{
         BlockStatement, Boolean, CallExpression, Expression, ExpressionStatement, FunctionLiteral,
-        Identifier, IfExpression, InfixExpression, IntegerLiteral, LetStatement, PrefixExpression,
-        Program, ReturnStatement, Statement,
+        Identifier, IfExpression, InfixExpression, IntegerLiteral, LetStatement, Node,
+        PrefixExpression, Program, ReturnStatement, Statement,
     };
     use crate::lexer::Lexer;
     use crate::token::Token;
 
     #[test]
     fn test_let_statements() {
-        let input = r"
-            let x = 5;
-            let y = 10;
-            let foobar = 838383;
-        ";
+        let tests = vec![
+            ("let x = 5;", Token::Ident("x".to_string()), Token::Int(5)),
+            ("let y = true;", Token::Ident("y".to_string()), Token::True),
+            (
+                "let foobar = y;",
+                Token::Ident("foobar".to_string()),
+                Token::Ident("y".to_string()),
+            ),
+        ];
 
-        let lexer = Lexer::new(input.into());
-        let mut parser = Parser::new(lexer);
-        let program = parser.parse_program();
-        check_parse_errors(parser.errors);
+        for (input, ident, expected_value) in tests {
+            let lexer = Lexer::new(input.into());
+            let mut parser = Parser::new(lexer);
+            let program = parser.parse_program();
+            check_parse_errors(parser.errors);
 
-        assert_eq!(program.statements.len(), 3);
+            assert_eq!(program.statements.len(), 1);
 
-        let expected_idents = vec!["x", "y", "foobar"];
+            let let_stmt = match program.statements.first() {
+                Some(s) => {
+                    let cast = s.as_any().downcast_ref::<LetStatement>();
+                    match cast {
+                        Some(statement) => Box::new(statement),
+                        None => panic!("Error creating Let Statement"),
+                    }
+                }
+                None => panic!("There's no statement here"),
+            };
 
-        for (i, _ident) in expected_idents.iter().enumerate() {
-            assert_eq!("let", program.statements[i].token_literal());
+            assert_eq!(let_stmt.name, Identifier { token: ident });
+
+            match expected_value {
+                Token::Ident(_) => match let_stmt.value.as_ref() {
+                    Some(e) => match e.as_any().downcast_ref::<Identifier>() {
+                        Some(function) => {
+                            let exp = Box::new(function);
+                            assert_eq!(exp.token, expected_value);
+                        }
+                        None => panic!("Error casting integer"),
+                    },
+                    None => panic!("There's no expression"),
+                },
+                Token::Int(_) => match let_stmt.value.as_ref() {
+                    Some(e) => match e.as_any().downcast_ref::<IntegerLiteral>() {
+                        Some(function) => {
+                            let exp = Box::new(function);
+                            assert_eq!(exp.token, expected_value);
+                        }
+                        None => panic!("Error casting integer"),
+                    },
+                    None => panic!("There's no expression"),
+                },
+                Token::True | Token::False => match let_stmt.value.as_ref() {
+                    Some(e) => match e.as_any().downcast_ref::<Boolean>() {
+                        Some(function) => {
+                            let exp = Box::new(function);
+                            assert_eq!(exp.token, expected_value);
+                        }
+                        None => panic!("Error casting integer"),
+                    },
+                    None => panic!("There's no expression"),
+                },
+                _ => panic!("No test implement yet"),
+            };
         }
     }
 
     #[test]
     fn test_return_statements() {
-        let input = r"
-            return 5;
-            return 10;
-            return 993322;
-        ";
+        let tests = vec![
+            ("return 5;", Token::Return, Token::Int(5)),
+            ("return a", Token::Return, Token::Ident("a".to_string())),
+            ("return true", Token::Return, Token::True),
+        ];
 
-        let lexer = Lexer::new(input.into());
-        let mut parser = Parser::new(lexer);
-        let program = parser.parse_program();
+        for (input, ident, expected_value) in tests {
+            let lexer = Lexer::new(input.into());
+            let mut parser = Parser::new(lexer);
+            let program = parser.parse_program();
+            check_parse_errors(parser.errors);
 
-        assert_eq!(program.statements.len(), 3);
+            assert_eq!(program.statements.len(), 1);
 
-        for stmt in program.statements {
-            assert_eq!("return", stmt.token_literal())
+            let stmt = match program.statements.first() {
+                Some(s) => {
+                    let cast = s.as_any().downcast_ref::<ReturnStatement>();
+                    match cast {
+                        Some(statement) => Box::new(statement),
+                        None => panic!("Error creating ReturnStatement"),
+                    }
+                }
+                None => panic!("There's no statement here"),
+            };
+
+            assert_eq!(stmt.token, ident);
+
+            match expected_value {
+                Token::Ident(_) => match stmt.return_value.as_ref() {
+                    Some(e) => match e.as_any().downcast_ref::<Identifier>() {
+                        Some(function) => {
+                            let exp = Box::new(function);
+                            assert_eq!(exp.token, expected_value);
+                        }
+                        None => panic!("Error casting integer"),
+                    },
+                    None => panic!("There's no expression"),
+                },
+                Token::Int(_) => match stmt.return_value.as_ref() {
+                    Some(e) => match e.as_any().downcast_ref::<IntegerLiteral>() {
+                        Some(function) => {
+                            let exp = Box::new(function);
+                            assert_eq!(exp.token, expected_value);
+                        }
+                        None => panic!("Error casting integer"),
+                    },
+                    None => panic!("There's no expression"),
+                },
+                Token::True | Token::False => match stmt.return_value.as_ref() {
+                    Some(e) => match e.as_any().downcast_ref::<Boolean>() {
+                        Some(function) => {
+                            let exp = Box::new(function);
+                            assert_eq!(exp.token, expected_value);
+                        }
+                        None => panic!("Error casting integer"),
+                    },
+                    None => panic!("There's no expression"),
+                },
+                _ => panic!("No test implement yet"),
+            };
         }
     }
 
