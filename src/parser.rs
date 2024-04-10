@@ -1,7 +1,7 @@
 use crate::ast::{
-    BlockStatement, Boolean, Expression, ExpressionStatement, FunctionLiteral, Identifier,
-    IfExpression, InfixExpression, IntegerLiteral, LetStatement, PrefixExpression, Program,
-    ReturnStatement, Statement,
+    BlockStatement, Boolean, CallExpression, Expression, ExpressionStatement, FunctionLiteral,
+    Identifier, IfExpression, InfixExpression, IntegerLiteral, LetStatement, PrefixExpression,
+    Program, ReturnStatement, Statement,
 };
 use crate::lexer::Lexer;
 use crate::token::Token;
@@ -236,6 +236,10 @@ impl Parser {
                 self.next_token();
                 self.parse_infix_expression(left)
             }
+            Token::Lparen => {
+                self.next_token();
+                self.parse_call_expression(left)
+            }
             _ => left,
         }
     }
@@ -269,6 +273,7 @@ impl Parser {
             Token::Minus => Precedence::Sum,
             Token::Slash => Precedence::Product,
             Token::Asterisk => Precedence::Product,
+            Token::Lparen => Precedence::Call,
             _ => Precedence::Lowest,
         }
     }
@@ -455,6 +460,53 @@ impl Parser {
         }
 
         Some(identifiers)
+    }
+
+    fn parse_call_expression(
+        &mut self,
+        function: Option<Box<dyn Expression>>,
+    ) -> Option<Box<dyn Expression>> {
+        let token = self.current_token.clone();
+        let arguments = self
+            .parse_call_arguments()
+            .expect("Erro on getting arguments");
+        let call = CallExpression {
+            token: token.clone(),
+            function: function.expect("Missing function"),
+            arguments,
+        };
+        Some(Box::new(call))
+    }
+
+    fn parse_call_arguments(&mut self) -> Option<Vec<Box<dyn Expression>>> {
+        let mut args = vec![];
+
+        if self.peek_token == Token::Rparen {
+            self.next_token();
+            return Some(args);
+        }
+
+        self.next_token();
+
+        args.push(
+            self.parse_expression(Precedence::Lowest)
+                .expect("Missing expression on parse call arguments"),
+        );
+
+        while self.peek_token == Token::Comma {
+            self.next_token();
+            self.next_token();
+            args.push(
+                self.parse_expression(Precedence::Lowest)
+                    .expect("Missing expression on parse call arguments"),
+            );
+        }
+
+        if !self.expect_peek(Token::Rparen) {
+            return None;
+        }
+
+        Some(args)
     }
 }
 
@@ -748,6 +800,15 @@ mod parser_tests {
             ("2 / (5 + 5)", "(2 / (5 + 5))"),
             ("-(5 + 5)", "(-(5 + 5))"),
             ("!(true == true)", "(!(true == true))"),
+            ("a + add(b * c) + d", "((a + add((b * c))) + d)"),
+            (
+                "add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))",
+                "add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))",
+            ),
+            (
+                "add(a + b + c * d / f + g)",
+                "add((((a + b) + ((c * d) / f)) + g))",
+            ),
         ];
 
         for (input, expected) in tests {
@@ -988,10 +1049,7 @@ mod parser_tests {
             None => panic!("There's no expression"),
         };
 
-        assert_eq!(
-            call.function.token_literal(),
-            format!("{:?}", Token::Ident("add".to_string()))
-        );
+        assert_eq!(call.function.token_literal(), "add".to_string());
 
         assert_eq!(call.arguments.len(), 3);
 

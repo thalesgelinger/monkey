@@ -399,8 +399,8 @@ impl Node for CallExpression {
 
         out.push_str(&self.function.string());
         out.push_str("(");
-        out.push_str(&args.join(","));
-        out.push_str(") ");
+        out.push_str(&args.join(", "));
+        out.push_str(")");
 
         out
     }
