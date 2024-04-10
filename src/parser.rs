@@ -80,9 +80,8 @@ impl Parser {
             }
         };
 
-        match self.peek_token {
-            Token::Assign => self.next_token(),
-            _ => return None,
+        if !self.expect_peek(Token::Assign) {
+            return None;
         }
 
         self.next_token();
@@ -104,8 +103,9 @@ impl Parser {
 
     fn peek_error(&mut self, token: Token) {
         let msg = format!(
-            "expected next token to be {:?}, got {:?} instead",
-            token, self.peek_token
+            "expected next token to be {}, got {} instead",
+            token.string(),
+            self.peek_token.string()
         );
         self.errors.push(msg)
     }
@@ -245,7 +245,7 @@ impl Parser {
     }
 
     fn no_prefix_parse_fn_error(&mut self, token: Token) {
-        let msg = format!("no prefix parse function for {:?} found", token);
+        let msg = format!("no prefix parse function for {} found", token.string());
         self.errors.push(msg)
     }
 

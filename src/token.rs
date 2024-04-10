@@ -60,6 +60,8 @@ impl Token {
             Token::False => "false".to_string(),
             Token::True => "true".to_string(),
             Token::Comma => ",".to_string(),
+            Token::Int(value) => value.to_string(),
+            Token::Ident(value) => value.to_string(),
             t => format!("{:?}", t),
         }
     }
