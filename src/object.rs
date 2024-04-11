@@ -6,19 +6,18 @@ pub enum ObjectType {
     Null,
 }
 
-trait Object {
-    // Object type
-    fn t() -> ObjectType;
-    fn inspect() -> String;
+pub trait Object {
+    fn t(&self) -> ObjectType;
+    fn inspect(&self) -> String;
 }
 
 #[derive(Debug)]
-struct Integer {
-    value: usize,
+pub struct Integer {
+    pub value: usize,
 }
 
 impl Object for Integer {
-    fn t() -> ObjectType {
+    fn t(&self) -> ObjectType {
         ObjectType::Integer
     }
 
@@ -28,12 +27,12 @@ impl Object for Integer {
 }
 
 #[derive(Debug)]
-struct Boolean {
+pub struct Boolean {
     value: bool,
 }
 
 impl Object for Boolean {
-    fn t() -> ObjectType {
+    fn t(&self) -> ObjectType {
         ObjectType::Boolean
     }
 
@@ -43,10 +42,10 @@ impl Object for Boolean {
 }
 
 #[derive(Debug)]
-struct Null {}
+pub struct Null;
 
 impl Object for Null {
-    fn t() -> ObjectType {
+    fn t(&self) -> ObjectType {
         ObjectType::Null
     }
 

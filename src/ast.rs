@@ -60,6 +60,22 @@ impl Program {
     }
 }
 
+impl Node for Program {
+    fn token_literal(&self) -> String {
+        "".to_string()
+    }
+
+    fn string(&self) -> String {
+        let mut out = String::new();
+
+        for statement in &self.statements {
+            out.push_str(&statement.string())
+        }
+
+        out
+    }
+}
+
 #[derive(Debug)]
 pub struct LetStatement {
     pub token: Token,
