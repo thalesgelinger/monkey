@@ -1,4 +1,4 @@
-use crate::{lexer::Lexer, parser::Parser};
+use crate::{evaluator::Eval, lexer::Lexer, parser::Parser};
 use std::io::{self, Write};
 
 const MONKEY_FACE: &str = r#"
@@ -38,7 +38,8 @@ pub fn start_repl() {
                 println!("      {:?}", msg);
             }
         } else {
-            println!("{:?}", program.string());
+            let evaluated = program.eval();
+            println!("{}", evaluated.inspect());
         }
     }
 }

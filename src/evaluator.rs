@@ -1,48 +1,43 @@
-use core::panic;
-
-use crate::ast::{IntegerLiteral, Node, Program, Statement};
-use crate::object::{Integer, Null, Object};
+use crate::ast::{AnyNode, Program, Statement};
+use crate::object::{Boolean, Integer, Null, Object};
 use crate::token::Token;
 
-#[warn(dead_code)]
-fn eval<T>(node: &Box<T>) -> Box<dyn Object>
-where
-    T: Node + Sized,
-{
-    if let Some(program) = node.as_any().downcast_ref::<Program>() {
-        eval_statements(&program.statements)
-    } else if let Some(integer) = node.as_any().downcast_ref::<IntegerLiteral>() {
-        match integer.token {
-            Token::Int(value) => Box::new(Integer { value }),
-            _ => panic!("Error, token should be an Int"),
+pub trait Eval: AnyNode {
+    fn eval(&self) -> Box<dyn Object>;
+}
+
+impl Eval for Program {
+    fn eval(&self) -> Box<dyn Object> {
+        let mut result: Box<dyn Object> = Box::new(Null);
+
+        for stmt in &self.statements {
+            result = stmt.eval();
         }
-    } else {
-        Box::new(Null)
+
+        result
     }
 }
 
-fn eval_statements<T>(statements: &Vec<Box<T>>) -> Box<dyn Object>
-where
-    T: Statement + Sized,
-{
-    let mut result: Box<dyn Object>;
-
-    for stmt in statements {
-        result = eval(stmt);
+impl Eval for dyn Statement {
+    fn eval(&self) -> Box<dyn Object> {
+        match &self.statement_node() {
+            Token::Int(value) => Box::new(Integer { value: *value }),
+            Token::True => Box::new(Boolean { value: true }),
+            Token::False => Box::new(Boolean { value: false }),
+            _ => {
+                println!("Missing eval implement for: {:?}", self.token_literal());
+                Box::new(Null)
+            }
+        }
     }
-
-    result
 }
 
 #[cfg(test)]
 mod evaluator_test {
 
-    use std::usize;
-
-    use super::eval;
-    use crate::ast::AnyNode;
+    use super::Eval;
     use crate::lexer::Lexer;
-    use crate::object::{Integer, Object};
+    use crate::object::Object;
     use crate::parser::Parser;
 
     #[test]
@@ -51,7 +46,34 @@ mod evaluator_test {
 
         for (input, expected) in tests {
             let evaluated = test_eval(input.into());
-            test_integer_object(evaluated, expected);
+            assert_eq!(evaluated.inspect(), expected.to_string())
+        }
+    }
+
+    #[test]
+    fn test_eval_boolean_expression() {
+        let tests = vec![("true", true), ("false", false)];
+
+        for (input, expected) in tests {
+            let evaluated = test_eval(input.into());
+            assert_eq!(evaluated.inspect(), expected.to_string())
+        }
+    }
+
+    #[test]
+    fn test_bang_operator() {
+        let tests = vec![
+            ("!true", false),
+            ("!false", true),
+            ("!5", false),
+            ("!!true", true),
+            ("!!false", false),
+            ("!!5", true),
+        ];
+
+        for (input, expected) in tests {
+            let evaluated = test_eval(input.into());
+            assert_eq!(evaluated.inspect(), expected.to_string())
         }
     }
 
@@ -60,18 +82,6 @@ mod evaluator_test {
         let mut parser = Parser::new(lexer);
         let program = parser.parse_program();
 
-        println!("Program: {:?}", program);
-
-        eval(Box::new(program))
-    }
-
-    fn test_integer_object(obj: Box<dyn Object>, expected: usize) {
-        println!("Obj: {:?}", obj);
-
-        let result = match obj.as_any().downcast_ref::<Integer>() {
-            Some(statement) => Box::new(statement),
-            None => panic!("Object is not an integer"),
-        };
-        assert_eq!(result.value, expected);
+        program.eval()
     }
 }

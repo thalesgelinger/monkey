@@ -18,7 +18,7 @@ pub trait Node: AnyNode {
 }
 
 pub trait Statement: Node {
-    fn statement_node(&self);
+    fn statement_node(&self) -> &Token;
 }
 
 impl Debug for dyn Statement {
@@ -159,15 +159,21 @@ impl Node for ExpressionStatement {
 }
 
 impl Statement for LetStatement {
-    fn statement_node(&self) {}
+    fn statement_node(&self) -> &Token {
+        &self.token
+    }
 }
 
 impl Statement for ReturnStatement {
-    fn statement_node(&self) {}
+    fn statement_node(&self) -> &Token {
+        &self.token
+    }
 }
 
 impl Statement for ExpressionStatement {
-    fn statement_node(&self) {}
+    fn statement_node(&self) -> &Token {
+        &self.token
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]

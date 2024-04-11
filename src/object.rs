@@ -1,5 +1,7 @@
 use std::{fmt::Debug, usize};
 
+use crate::ast::AnyNode;
+
 #[derive(Debug)]
 pub enum ObjectType {
     Integer,
@@ -7,7 +9,7 @@ pub enum ObjectType {
     Null,
 }
 
-pub trait Object {
+pub trait Object: AnyNode {
     fn t(&self) -> ObjectType;
     fn inspect(&self) -> String;
 }
@@ -35,7 +37,7 @@ impl Object for Integer {
 
 #[derive(Debug)]
 pub struct Boolean {
-    value: bool,
+    pub value: bool,
 }
 
 impl Object for Boolean {
