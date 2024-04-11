@@ -1,5 +1,6 @@
-use std::usize;
+use std::{fmt::Debug, usize};
 
+#[derive(Debug)]
 pub enum ObjectType {
     Integer,
     Boolean,
@@ -9,6 +10,12 @@ pub enum ObjectType {
 pub trait Object {
     fn t(&self) -> ObjectType;
     fn inspect(&self) -> String;
+}
+
+impl Debug for dyn Object {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Type: {:?}, Value: {:?}", self.t(), self.inspect())
+    }
 }
 
 #[derive(Debug)]
