@@ -5,7 +5,7 @@ use crate::ast::AnyNode;
 #[derive(Debug)]
 pub enum ObjectType {
     Integer,
-    Boolean,
+    Boolean(Boolean),
     Null,
 }
 
@@ -35,14 +35,14 @@ impl Object for Integer {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Boolean {
     pub value: bool,
 }
 
 impl Object for Boolean {
     fn t(&self) -> ObjectType {
-        ObjectType::Boolean
+        ObjectType::Boolean(self.clone())
     }
 
     fn inspect(&self) -> String {

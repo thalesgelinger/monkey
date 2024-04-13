@@ -1,5 +1,10 @@
-use crate::ast::{AnyNode, Program, Statement};
-use crate::object::{Boolean, Integer, Null, Object};
+use core::panic;
+
+use crate::ast::{
+    self, AnyNode, Expression, ExpressionStatement, IntegerLiteral, PrefixExpression, Program,
+    Statement,
+};
+use crate::object::{Boolean, Integer, Null, Object, ObjectType};
 use crate::token::Token;
 
 pub trait Eval: AnyNode {
@@ -20,15 +25,56 @@ impl Eval for Program {
 
 impl Eval for dyn Statement {
     fn eval(&self) -> Box<dyn Object> {
-        match &self.statement_node() {
-            Token::Int(value) => Box::new(Integer { value: *value }),
-            Token::True => Box::new(Boolean { value: true }),
-            Token::False => Box::new(Boolean { value: false }),
-            _ => {
-                println!("Missing eval implement for: {:?}", self.token_literal());
-                Box::new(Null)
-            }
+        if let Some(exp) = self.as_any().downcast_ref::<ExpressionStatement>() {
+            exp.expression
+                .as_ref()
+                .expect("error missing expression")
+                .eval()
+        } else {
+            Box::new(Null)
         }
+    }
+}
+
+impl Eval for dyn Expression {
+    fn eval(&self) -> Box<dyn Object> {
+        if let Some(integer) = self.as_any().downcast_ref::<IntegerLiteral>() {
+            let integer = match integer.token {
+                Token::Int(value) => Integer { value },
+                _ => panic!("error should be a Int"),
+            };
+            Box::new(integer)
+        } else if let Some(boolean) = self.as_any().downcast_ref::<ast::Boolean>() {
+            let integer = match boolean.token {
+                Token::True => Boolean { value: true },
+                Token::False => Boolean { value: false },
+                _ => panic!("error should be a Int"),
+            };
+            Box::new(integer)
+        } else if let Some(exp) = self.as_any().downcast_ref::<PrefixExpression>() {
+            let right = exp
+                .right
+                .as_ref()
+                .expect("error missing right expression")
+                .eval();
+
+            match exp.operator {
+                Token::Bang => eval_bang(right),
+                _ => Box::new(Null),
+            }
+        } else {
+            Box::new(Null)
+        }
+    }
+}
+
+fn eval_bang(right: Box<dyn Object>) -> Box<dyn Object> {
+    match right.t() {
+        ObjectType::Boolean(boolean) => Box::new(Boolean {
+            value: !boolean.value,
+        }),
+        ObjectType::Null => Box::new(Boolean { value: true }),
+        _ => Box::new(Boolean { value: false }),
     }
 }
 
