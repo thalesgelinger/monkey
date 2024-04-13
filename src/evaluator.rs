@@ -1,8 +1,8 @@
 use core::panic;
 
 use crate::ast::{
-    self, AnyNode, Expression, ExpressionStatement, IntegerLiteral, PrefixExpression, Program,
-    Statement,
+    self, AnyNode, Expression, ExpressionStatement, InfixExpression, IntegerLiteral,
+    PrefixExpression, Program, Statement,
 };
 use crate::object::{Boolean, Integer, Null, Object, ObjectType};
 use crate::token::Token;
@@ -63,6 +63,37 @@ impl Eval for dyn Expression {
                 Token::Minus => eval_minus_prefix(right),
                 _ => Box::new(Null),
             }
+        } else if let Some(exp) = self.as_any().downcast_ref::<InfixExpression>() {
+            let right = exp
+                .right
+                .as_ref()
+                .expect("error missing right expression")
+                .eval();
+
+            let left = exp
+                .left
+                .as_ref()
+                .expect("error missing left expression")
+                .eval();
+
+            match (left.t(), right.t()) {
+                (ObjectType::Integer(left), ObjectType::Integer(right)) => match exp.operator {
+                    Token::Plus => Box::new(Integer {
+                        value: left.value + right.value,
+                    }),
+                    Token::Minus => Box::new(Integer {
+                        value: left.value - right.value,
+                    }),
+                    Token::Asterisk => Box::new(Integer {
+                        value: left.value * right.value,
+                    }),
+                    Token::Slash => Box::new(Integer {
+                        value: left.value / right.value,
+                    }),
+                    _ => Box::new(Null),
+                },
+                _ => Box::new(Null),
+            }
         } else {
             Box::new(Null)
         }
@@ -98,7 +129,23 @@ mod evaluator_test {
 
     #[test]
     fn test_eval_integer_expression() {
-        let tests = vec![("5", 5), ("10", 10), ("-5", -5), ("-10", -10)];
+        let tests = vec![
+            ("5", 5),
+            ("10", 10),
+            ("-5", -5),
+            ("-10", -10),
+            ("5 + 5 + 5 + 5 - 10", 10),
+            ("2 * 2 * 2 * 2 * 2", 32),
+            ("-50 + 100 + -50", 0),
+            ("5 * 2 + 10", 20),
+            ("5 + 2 * 10", 25),
+            ("20 + 2 * -10", 0),
+            ("50 / 2 * 2 + 10", 60),
+            ("2 * (5 + 10)", 30),
+            ("3 * 3 * 3 + 10", 37),
+            ("3 * (3 * 3) + 10", 37),
+            ("(5 + 10 * 2 + 15 / 3) * 2 + -10", 50),
+        ];
 
         for (input, expected) in tests {
             let evaluated = test_eval(input.into());
