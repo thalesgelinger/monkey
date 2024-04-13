@@ -20,6 +20,7 @@ impl Eval for Program {
 
             match result {
                 Object::Return(value) => return *value,
+                Object::Error(_) => return result,
                 _ => continue,
             }
         }
@@ -74,7 +75,11 @@ impl Eval for dyn Expression {
             match exp.operator {
                 Token::Bang => eval_bang(right),
                 Token::Minus => eval_minus_prefix(right),
-                _ => Object::Null,
+                _ => Object::Error(format!(
+                    "unknown operator: {}{}",
+                    exp.operator.string(),
+                    right.inspect()
+                )),
             }
         } else if let Some(exp) = self.as_any().downcast_ref::<InfixExpression>() {
             let right = exp
@@ -89,7 +94,7 @@ impl Eval for dyn Expression {
                 .expect("error missing left expression")
                 .eval();
 
-            match (left, right) {
+            match (&left, &right) {
                 (Object::Integer(left), Object::Integer(right)) => match exp.operator {
                     Token::Plus => Object::Integer(left + right),
                     Token::Minus => Object::Integer(left - right),
@@ -99,15 +104,36 @@ impl Eval for dyn Expression {
                     Token::Gt => Object::Boolean(left > right),
                     Token::Eq => Object::Boolean(left == right),
                     Token::NotEq => Object::Boolean(left != right),
-                    _ => Object::Null,
+                    _ => Object::Error(format!(
+                        "unknown operator: {} {} {}",
+                        left,
+                        exp.operator.string(),
+                        right
+                    )),
                 },
 
                 (Object::Boolean(left), Object::Boolean(right)) => match exp.operator {
                     Token::Eq => Object::Boolean(left == right),
                     Token::NotEq => Object::Boolean(left != right),
-                    _ => Object::Null,
+                    _ => Object::Error(format!(
+                        "unknown operator: BOOLEAN {} BOOLEAN",
+                        exp.operator.string(),
+                    )),
                 },
-                _ => Object::Null,
+                _ => match left != right {
+                    true => Object::Error(format!(
+                        "type mismatch: {} {} {}",
+                        left,
+                        exp.operator.string(),
+                        right
+                    )),
+                    false => Object::Error(format!(
+                        "unknown operator: {} {} {}",
+                        left,
+                        exp.operator.string(),
+                        right
+                    )),
+                },
             }
         } else if let Some(exp) = self.as_any().downcast_ref::<IfExpression>() {
             let is_truthy = match exp.condition.eval() {
@@ -138,7 +164,7 @@ fn eval_block_statements(statements: &Vec<Box<dyn Statement>>) -> Object {
         result = stmt.eval();
 
         match result {
-            Object::Return(_) => return result,
+            Object::Return(_) | Object::Error(_) => return result,
             _ => continue,
         }
     }
@@ -149,7 +175,7 @@ fn eval_block_statements(statements: &Vec<Box<dyn Statement>>) -> Object {
 fn eval_minus_prefix(right: Object) -> Object {
     match right {
         Object::Integer(integer) => Object::Integer(-integer),
-        _ => Object::Null,
+        _ => Object::Error(format!("unknown operator: -{}", right)),
     }
 }
 
@@ -277,6 +303,33 @@ mod evaluator_test {
         for (input, expected) in tests {
             let evaluated = test_eval(input.into());
             assert_eq!(evaluated.inspect(), expected.to_string())
+        }
+    }
+
+    #[test]
+    fn test_error_handling() {
+        let tests = vec![
+            ("5 + true;", "type mismatch: INTEGER + BOOLEAN"),
+            ("5 + true; 5;", "type mismatch: INTEGER + BOOLEAN"),
+            ("-true", "unknown operator: -BOOLEAN"),
+            ("true + false;", "unknown operator: BOOLEAN + BOOLEAN"),
+            ("5; true + false; 5", "unknown operator: BOOLEAN + BOOLEAN"),
+            (
+                "if (10 > 1) { true + false; }",
+                "unknown operator: BOOLEAN + BOOLEAN",
+            ),
+            (
+                " if (10 > 1) { if (10 > 1) { return true + false; } return 1; } ",
+                "unknown operator: BOOLEAN + BOOLEAN",
+            ),
+        ];
+
+        for (input, expected) in tests {
+            let evaluated = test_eval(input.into());
+            assert_eq!(
+                evaluated.inspect(),
+                format!("ERROR: {}", expected.to_string())
+            )
         }
     }
     fn test_eval(input: String) -> Object {
