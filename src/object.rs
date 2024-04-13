@@ -1,10 +1,10 @@
-use std::{fmt::Debug, usize};
+use std::fmt::Debug;
 
 use crate::ast::AnyNode;
 
 #[derive(Debug)]
 pub enum ObjectType {
-    Integer,
+    Integer(Integer),
     Boolean(Boolean),
     Null,
 }
@@ -20,14 +20,14 @@ impl Debug for dyn Object {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Integer {
-    pub value: usize,
+    pub value: isize,
 }
 
 impl Object for Integer {
     fn t(&self) -> ObjectType {
-        ObjectType::Integer
+        ObjectType::Integer(self.clone())
     }
 
     fn inspect(&self) -> String {

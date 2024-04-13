@@ -100,7 +100,7 @@ impl Lexer {
         }
     }
 
-    fn read_number(&mut self) -> usize {
+    fn read_number(&mut self) -> isize {
         let position = self.position;
 
         while self.ch.is_ascii_digit() {
@@ -108,7 +108,7 @@ impl Lexer {
         }
 
         match String::from_utf8(self.input[position..self.position].to_vec()) {
-            Ok(number) => number.parse::<usize>().unwrap(),
+            Ok(number) => number.parse::<isize>().unwrap(),
             Err(_) => panic!("Error getting identifier"),
         }
     }

@@ -60,11 +60,21 @@ impl Eval for dyn Expression {
 
             match exp.operator {
                 Token::Bang => eval_bang(right),
+                Token::Minus => eval_minus_prefix(right),
                 _ => Box::new(Null),
             }
         } else {
             Box::new(Null)
         }
+    }
+}
+
+fn eval_minus_prefix(right: Box<dyn Object>) -> Box<dyn Object> {
+    match right.t() {
+        ObjectType::Integer(integer) => Box::new(Integer {
+            value: -integer.value,
+        }),
+        _ => Box::new(Null),
     }
 }
 
@@ -88,7 +98,7 @@ mod evaluator_test {
 
     #[test]
     fn test_eval_integer_expression() {
-        let tests = vec![("5", 5), ("10", 10)];
+        let tests = vec![("5", 5), ("10", 10), ("-5", -5), ("-10", -10)];
 
         for (input, expected) in tests {
             let evaluated = test_eval(input.into());
