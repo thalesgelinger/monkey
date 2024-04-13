@@ -90,6 +90,18 @@ impl Eval for dyn Expression {
                     Token::Slash => Box::new(Integer {
                         value: left.value / right.value,
                     }),
+                    Token::Lt => Box::new(Boolean {
+                        value: left.value < right.value,
+                    }),
+                    Token::Gt => Box::new(Boolean {
+                        value: left.value > right.value,
+                    }),
+                    Token::Eq => Box::new(Boolean {
+                        value: left.value == right.value,
+                    }),
+                    Token::NotEq => Box::new(Boolean {
+                        value: left.value != right.value,
+                    }),
                     _ => Box::new(Null),
                 },
                 _ => Box::new(Null),
@@ -155,7 +167,18 @@ mod evaluator_test {
 
     #[test]
     fn test_eval_boolean_expression() {
-        let tests = vec![("true", true), ("false", false)];
+        let tests = vec![
+            ("true", true),
+            ("false", false),
+            ("1 < 2", true),
+            ("1 > 2", false),
+            ("1 < 1", false),
+            ("1 > 1", false),
+            ("1 == 1", true),
+            ("1 != 1", false),
+            ("1 == 2", false),
+            ("1 != 2", true),
+        ];
 
         for (input, expected) in tests {
             let evaluated = test_eval(input.into());
