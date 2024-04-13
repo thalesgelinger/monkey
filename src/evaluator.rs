@@ -4,16 +4,16 @@ use crate::ast::{
     self, AnyNode, BlockStatement, Expression, ExpressionStatement, IfExpression, InfixExpression,
     IntegerLiteral, PrefixExpression, Program, Statement,
 };
-use crate::object::{Boolean, Integer, Null, Object, ObjectType};
+use crate::object::Object;
 use crate::token::Token;
 
 pub trait Eval: AnyNode {
-    fn eval(&self) -> Box<dyn Object>;
+    fn eval(&self) -> Object;
 }
 
 impl Eval for Program {
-    fn eval(&self) -> Box<dyn Object> {
-        let mut result: Box<dyn Object> = Box::new(Null);
+    fn eval(&self) -> Object {
+        let mut result: Object = Object::Null;
 
         for stmt in &self.statements {
             result = stmt.eval();
@@ -24,33 +24,33 @@ impl Eval for Program {
 }
 
 impl Eval for dyn Statement {
-    fn eval(&self) -> Box<dyn Object> {
+    fn eval(&self) -> Object {
         if let Some(exp) = self.as_any().downcast_ref::<ExpressionStatement>() {
             exp.expression
                 .as_ref()
                 .expect("error missing expression")
                 .eval()
         } else {
-            Box::new(Null)
+            Object::Null
         }
     }
 }
 
 impl Eval for dyn Expression {
-    fn eval(&self) -> Box<dyn Object> {
+    fn eval(&self) -> Object {
         if let Some(integer) = self.as_any().downcast_ref::<IntegerLiteral>() {
             let integer = match integer.token {
-                Token::Int(value) => Integer { value },
+                Token::Int(value) => Object::Integer(value),
                 _ => panic!("error should be a Int"),
             };
-            Box::new(integer)
+            integer
         } else if let Some(boolean) = self.as_any().downcast_ref::<ast::Boolean>() {
             let integer = match boolean.token {
-                Token::True => Boolean { value: true },
-                Token::False => Boolean { value: false },
+                Token::True => Object::Boolean(true),
+                Token::False => Object::Boolean(false),
                 _ => panic!("error should be a Int"),
             };
-            Box::new(integer)
+            integer
         } else if let Some(exp) = self.as_any().downcast_ref::<PrefixExpression>() {
             let right = exp
                 .right
@@ -61,7 +61,7 @@ impl Eval for dyn Expression {
             match exp.operator {
                 Token::Bang => eval_bang(right),
                 Token::Minus => eval_minus_prefix(right),
-                _ => Box::new(Null),
+                _ => Object::Null,
             }
         } else if let Some(exp) = self.as_any().downcast_ref::<InfixExpression>() {
             let right = exp
@@ -76,50 +76,30 @@ impl Eval for dyn Expression {
                 .expect("error missing left expression")
                 .eval();
 
-            match (left.t(), right.t()) {
-                (ObjectType::Integer(left), ObjectType::Integer(right)) => match exp.operator {
-                    Token::Plus => Box::new(Integer {
-                        value: left.value + right.value,
-                    }),
-                    Token::Minus => Box::new(Integer {
-                        value: left.value - right.value,
-                    }),
-                    Token::Asterisk => Box::new(Integer {
-                        value: left.value * right.value,
-                    }),
-                    Token::Slash => Box::new(Integer {
-                        value: left.value / right.value,
-                    }),
-                    Token::Lt => Box::new(Boolean {
-                        value: left.value < right.value,
-                    }),
-                    Token::Gt => Box::new(Boolean {
-                        value: left.value > right.value,
-                    }),
-                    Token::Eq => Box::new(Boolean {
-                        value: left.value == right.value,
-                    }),
-                    Token::NotEq => Box::new(Boolean {
-                        value: left.value != right.value,
-                    }),
-                    _ => Box::new(Null),
+            match (left, right) {
+                (Object::Integer(left), Object::Integer(right)) => match exp.operator {
+                    Token::Plus => Object::Integer(left + right),
+                    Token::Minus => Object::Integer(left - right),
+                    Token::Asterisk => Object::Integer(left * right),
+                    Token::Slash => Object::Integer(left / right),
+                    Token::Lt => Object::Boolean(left < right),
+                    Token::Gt => Object::Boolean(left > right),
+                    Token::Eq => Object::Boolean(left == right),
+                    Token::NotEq => Object::Boolean(left != right),
+                    _ => Object::Null,
                 },
 
-                (ObjectType::Boolean(left), ObjectType::Boolean(right)) => match exp.operator {
-                    Token::Eq => Box::new(Boolean {
-                        value: left.value == right.value,
-                    }),
-                    Token::NotEq => Box::new(Boolean {
-                        value: left.value != right.value,
-                    }),
-                    _ => Box::new(Null),
+                (Object::Boolean(left), Object::Boolean(right)) => match exp.operator {
+                    Token::Eq => Object::Boolean(left == right),
+                    Token::NotEq => Object::Boolean(left != right),
+                    _ => Object::Null,
                 },
-                _ => Box::new(Null),
+                _ => Object::Null,
             }
         } else if let Some(exp) = self.as_any().downcast_ref::<IfExpression>() {
-            let is_truthy = match exp.condition.eval().t() {
-                ObjectType::Boolean(boolean) => boolean.value,
-                ObjectType::Null => false,
+            let is_truthy = match exp.condition.eval() {
+                Object::Boolean(boolean) => boolean,
+                Object::Null => false,
                 _ => true,
             };
 
@@ -128,18 +108,18 @@ impl Eval for dyn Expression {
             } else if let Some(aternative) = &exp.alternative {
                 eval_statements(&aternative.statements)
             } else {
-                Box::new(Null)
+                Object::Null
             }
         } else if let Some(exp) = self.as_any().downcast_ref::<BlockStatement>() {
             eval_statements(&exp.statements)
         } else {
-            Box::new(Null)
+            Object::Null
         }
     }
 }
 
-fn eval_statements(statements: &Vec<Box<dyn Statement>>) -> Box<dyn Object> {
-    let mut result: Box<dyn Object> = Box::new(Null);
+fn eval_statements(statements: &Vec<Box<dyn Statement>>) -> Object {
+    let mut result: Object = Object::Null;
 
     for stmt in statements {
         result = stmt.eval();
@@ -148,22 +128,18 @@ fn eval_statements(statements: &Vec<Box<dyn Statement>>) -> Box<dyn Object> {
     result
 }
 
-fn eval_minus_prefix(right: Box<dyn Object>) -> Box<dyn Object> {
-    match right.t() {
-        ObjectType::Integer(integer) => Box::new(Integer {
-            value: -integer.value,
-        }),
-        _ => Box::new(Null),
+fn eval_minus_prefix(right: Object) -> Object {
+    match right {
+        Object::Integer(integer) => Object::Integer(-integer),
+        _ => Object::Null,
     }
 }
 
-fn eval_bang(right: Box<dyn Object>) -> Box<dyn Object> {
-    match right.t() {
-        ObjectType::Boolean(boolean) => Box::new(Boolean {
-            value: !boolean.value,
-        }),
-        ObjectType::Null => Box::new(Boolean { value: true }),
-        _ => Box::new(Boolean { value: false }),
+fn eval_bang(right: Object) -> Object {
+    match right {
+        Object::Boolean(boolean) => Object::Boolean(!boolean),
+        Object::Null => Object::Boolean(true),
+        _ => Object::Boolean(false),
     }
 }
 
@@ -270,7 +246,7 @@ mod evaluator_test {
         }
     }
 
-    fn test_eval(input: String) -> Box<dyn Object> {
+    fn test_eval(input: String) -> Object {
         let lexer = Lexer::new(input);
         let mut parser = Parser::new(lexer);
         let program = parser.parse_program();
