@@ -104,6 +104,16 @@ impl Eval for dyn Expression {
                     }),
                     _ => Box::new(Null),
                 },
+
+                (ObjectType::Boolean(left), ObjectType::Boolean(right)) => match exp.operator {
+                    Token::Eq => Box::new(Boolean {
+                        value: left.value == right.value,
+                    }),
+                    Token::NotEq => Box::new(Boolean {
+                        value: left.value != right.value,
+                    }),
+                    _ => Box::new(Null),
+                },
                 _ => Box::new(Null),
             }
         } else {
@@ -178,6 +188,15 @@ mod evaluator_test {
             ("1 != 1", false),
             ("1 == 2", false),
             ("1 != 2", true),
+            ("true == true", true),
+            ("false == false", true),
+            ("true == false", false),
+            ("true != false", true),
+            ("false != true", true),
+            ("(1 < 2) == true", true),
+            ("(1 < 2) == false", false),
+            ("(1 > 2) == true", false),
+            ("(1 > 2) == false", true),
         ];
 
         for (input, expected) in tests {
