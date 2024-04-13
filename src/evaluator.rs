@@ -1,8 +1,8 @@
 use core::panic;
 
 use crate::ast::{
-    self, AnyNode, Expression, ExpressionStatement, InfixExpression, IntegerLiteral,
-    PrefixExpression, Program, Statement,
+    self, AnyNode, BlockStatement, Expression, ExpressionStatement, IfExpression, InfixExpression,
+    IntegerLiteral, PrefixExpression, Program, Statement,
 };
 use crate::object::{Boolean, Integer, Null, Object, ObjectType};
 use crate::token::Token;
@@ -116,10 +116,36 @@ impl Eval for dyn Expression {
                 },
                 _ => Box::new(Null),
             }
+        } else if let Some(exp) = self.as_any().downcast_ref::<IfExpression>() {
+            let is_truthy = match exp.condition.eval().t() {
+                ObjectType::Boolean(boolean) => boolean.value,
+                ObjectType::Null => false,
+                _ => true,
+            };
+
+            if is_truthy {
+                eval_statements(&exp.consequence.statements)
+            } else if let Some(aternative) = &exp.alternative {
+                eval_statements(&aternative.statements)
+            } else {
+                Box::new(Null)
+            }
+        } else if let Some(exp) = self.as_any().downcast_ref::<BlockStatement>() {
+            eval_statements(&exp.statements)
         } else {
             Box::new(Null)
         }
     }
+}
+
+fn eval_statements(statements: &Vec<Box<dyn Statement>>) -> Box<dyn Object> {
+    let mut result: Box<dyn Object> = Box::new(Null);
+
+    for stmt in statements {
+        result = stmt.eval();
+    }
+
+    result
 }
 
 fn eval_minus_prefix(right: Box<dyn Object>) -> Box<dyn Object> {
@@ -219,6 +245,28 @@ mod evaluator_test {
         for (input, expected) in tests {
             let evaluated = test_eval(input.into());
             assert_eq!(evaluated.inspect(), expected.to_string())
+        }
+    }
+
+    #[test]
+    fn test_if_else_expressions() {
+        let tests = vec![
+            ("if (true) { 10 }", Some(10)),
+            ("if (false) { 10 }", None),
+            ("if (1) { 10 }", Some(10)),
+            ("if (1 < 2) { 10 }", Some(10)),
+            ("if (1 > 2) { 10 }", None),
+            ("if (1 > 2) { 10 } else { 20 }", Some(20)),
+            ("if (1 < 2) { 10 } else { 20 }", Some(10)),
+        ];
+
+        for (input, expected) in tests {
+            let evaluated = test_eval(input.into());
+
+            match expected {
+                Some(value) => assert_eq!(evaluated.inspect(), value.to_string()),
+                None => assert_eq!(evaluated.inspect(), "null"),
+            }
         }
     }
 
