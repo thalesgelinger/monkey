@@ -1,4 +1,5 @@
 mod ast;
+mod environment;
 mod evaluator;
 mod lexer;
 mod object;
@@ -14,4 +15,3 @@ fn main() {
 
     start_repl();
 }
-

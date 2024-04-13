@@ -1,22 +1,24 @@
 use core::panic;
 
 use crate::ast::{
-    self, AnyNode, BlockStatement, Expression, ExpressionStatement, IfExpression, InfixExpression,
-    IntegerLiteral, PrefixExpression, Program, ReturnStatement, Statement,
+    self, AnyNode, BlockStatement, Expression, ExpressionStatement, Identifier, IfExpression,
+    InfixExpression, IntegerLiteral, LetStatement, PrefixExpression, Program, ReturnStatement,
+    Statement,
 };
+use crate::environment::Env;
 use crate::object::Object;
 use crate::token::Token;
 
 pub trait Eval: AnyNode {
-    fn eval(&self) -> Object;
+    fn eval(&self, env: &mut Env) -> Object;
 }
 
 impl Eval for Program {
-    fn eval(&self) -> Object {
+    fn eval(&self, env: &mut Env) -> Object {
         let mut result: Object = Object::Null;
 
         for stmt in &self.statements {
-            result = stmt.eval();
+            result = stmt.eval(env);
 
             match result {
                 Object::Return(value) => return *value,
@@ -30,18 +32,38 @@ impl Eval for Program {
 }
 
 impl Eval for dyn Statement {
-    fn eval(&self) -> Object {
+    fn eval(&self, env: &mut Env) -> Object {
         if let Some(exp) = self.as_any().downcast_ref::<ExpressionStatement>() {
             exp.expression
                 .as_ref()
                 .expect("error missing expression")
-                .eval()
+                .eval(env)
+        } else if let Some(exp) = self.as_any().downcast_ref::<LetStatement>() {
+            let val = exp
+                .value
+                .as_ref()
+                .expect("error missing expression")
+                .eval(env);
+
+            match val {
+                Object::Error(_) => return val,
+                _ => (),
+            }
+            let token = exp.name.token.clone();
+
+            match token {
+                Token::Ident(name) => env.set(name.into(), val),
+                _ => panic!("error should be an ident"),
+            }
+
+            // TODO: add env
+            Object::Null
         } else if let Some(exp) = self.as_any().downcast_ref::<ReturnStatement>() {
             let result = exp
                 .return_value
                 .as_ref()
                 .expect("error missing expression")
-                .eval();
+                .eval(env);
 
             match result {
                 Object::Error(_) => result,
@@ -54,8 +76,16 @@ impl Eval for dyn Statement {
 }
 
 impl Eval for dyn Expression {
-    fn eval(&self) -> Object {
-        if let Some(integer) = self.as_any().downcast_ref::<IntegerLiteral>() {
+    fn eval(&self, env: &mut Env) -> Object {
+        if let Some(ident) = self.as_any().downcast_ref::<Identifier>() {
+            match &ident.token {
+                Token::Ident(key) => match env.get(key.to_string()) {
+                    Some(val) => val,
+                    None => Object::Error(format!("identifier not found: {}", key)),
+                },
+                _ => panic!("error should be an ident"),
+            }
+        } else if let Some(integer) = self.as_any().downcast_ref::<IntegerLiteral>() {
             let integer = match integer.token {
                 Token::Int(value) => Object::Integer(value),
                 _ => panic!("error should be a Int"),
@@ -73,7 +103,7 @@ impl Eval for dyn Expression {
                 .right
                 .as_ref()
                 .expect("error missing right expression")
-                .eval();
+                .eval(env);
 
             match right {
                 Object::Error(_) => return right,
@@ -94,7 +124,7 @@ impl Eval for dyn Expression {
                 .left
                 .as_ref()
                 .expect("error missing left expression")
-                .eval();
+                .eval(env);
 
             match left {
                 Object::Error(_) => return left,
@@ -105,7 +135,7 @@ impl Eval for dyn Expression {
                 .right
                 .as_ref()
                 .expect("error missing right expression")
-                .eval();
+                .eval(env);
 
             match right {
                 Object::Error(_) => return right,
@@ -154,7 +184,7 @@ impl Eval for dyn Expression {
                 },
             }
         } else if let Some(exp) = self.as_any().downcast_ref::<IfExpression>() {
-            let condition = exp.condition.eval();
+            let condition = exp.condition.eval(env);
             match condition {
                 Object::Error(_) => return condition,
                 _ => (),
@@ -167,25 +197,25 @@ impl Eval for dyn Expression {
             };
 
             if is_truthy {
-                eval_block_statements(&exp.consequence.statements)
+                eval_block_statements(&exp.consequence.statements, env)
             } else if let Some(aternative) = &exp.alternative {
-                eval_block_statements(&aternative.statements)
+                eval_block_statements(&aternative.statements, env)
             } else {
                 Object::Null
             }
         } else if let Some(exp) = self.as_any().downcast_ref::<BlockStatement>() {
-            eval_block_statements(&exp.statements)
+            eval_block_statements(&exp.statements, env)
         } else {
             Object::Null
         }
     }
 }
 
-fn eval_block_statements(statements: &Vec<Box<dyn Statement>>) -> Object {
+fn eval_block_statements(statements: &Vec<Box<dyn Statement>>, env: &mut Env) -> Object {
     let mut result: Object = Object::Null;
 
     for stmt in statements {
-        result = stmt.eval();
+        result = stmt.eval(env);
 
         match result {
             Object::Return(_) | Object::Error(_) => return result,
@@ -215,6 +245,7 @@ fn eval_bang(right: Object) -> Object {
 mod evaluator_test {
 
     use super::Eval;
+    use crate::environment::Env;
     use crate::lexer::Lexer;
     use crate::object::Object;
     use crate::parser::Parser;
@@ -346,6 +377,7 @@ mod evaluator_test {
                 " if (10 > 1) { if (10 > 1) { return true + false; } return 1; } ",
                 "unknown operator: BOOLEAN + BOOLEAN",
             ),
+            ("foobar", "identifier not found: foobar"),
         ];
 
         for (input, expected) in tests {
@@ -356,11 +388,30 @@ mod evaluator_test {
             )
         }
     }
+
+    #[test]
+
+    fn test_let_statements() {
+        let tests = vec![
+            ("let a = 5; a;", 5),
+            ("let a = 5 * 5; a;", 25),
+            ("let a = 5; let b = a; b;", 5),
+            ("let a = 5; let b = a; let c = a + b + 5; c;", 15),
+        ];
+
+        for (input, expected) in tests {
+            let evaluated = test_eval(input.into());
+
+            assert_eq!(evaluated.inspect(), expected.to_string())
+        }
+    }
+
     fn test_eval(input: String) -> Object {
         let lexer = Lexer::new(input);
         let mut parser = Parser::new(lexer);
         let program = parser.parse_program();
+        let mut env = Env::new();
 
-        program.eval()
+        program.eval(&mut env)
     }
 }
