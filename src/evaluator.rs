@@ -43,7 +43,10 @@ impl Eval for dyn Statement {
                 .expect("error missing expression")
                 .eval();
 
-            Object::Return(Box::new(result))
+            match result {
+                Object::Error(_) => result,
+                _ => Object::Return(Box::new(result)),
+            }
         } else {
             Object::Null
         }
@@ -72,6 +75,11 @@ impl Eval for dyn Expression {
                 .expect("error missing right expression")
                 .eval();
 
+            match right {
+                Object::Error(_) => return right,
+                _ => (),
+            };
+
             match exp.operator {
                 Token::Bang => eval_bang(right),
                 Token::Minus => eval_minus_prefix(right),
@@ -82,17 +90,27 @@ impl Eval for dyn Expression {
                 )),
             }
         } else if let Some(exp) = self.as_any().downcast_ref::<InfixExpression>() {
+            let left = exp
+                .left
+                .as_ref()
+                .expect("error missing left expression")
+                .eval();
+
+            match left {
+                Object::Error(_) => return left,
+                _ => (),
+            };
+
             let right = exp
                 .right
                 .as_ref()
                 .expect("error missing right expression")
                 .eval();
 
-            let left = exp
-                .left
-                .as_ref()
-                .expect("error missing left expression")
-                .eval();
+            match right {
+                Object::Error(_) => return right,
+                _ => (),
+            };
 
             match (&left, &right) {
                 (Object::Integer(left), Object::Integer(right)) => match exp.operator {
@@ -136,7 +154,13 @@ impl Eval for dyn Expression {
                 },
             }
         } else if let Some(exp) = self.as_any().downcast_ref::<IfExpression>() {
-            let is_truthy = match exp.condition.eval() {
+            let condition = exp.condition.eval();
+            match condition {
+                Object::Error(_) => return condition,
+                _ => (),
+            }
+
+            let is_truthy = match condition {
                 Object::Boolean(boolean) => boolean,
                 Object::Null => false,
                 _ => true,
