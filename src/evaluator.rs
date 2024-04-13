@@ -2,7 +2,7 @@ use core::panic;
 
 use crate::ast::{
     self, AnyNode, BlockStatement, Expression, ExpressionStatement, IfExpression, InfixExpression,
-    IntegerLiteral, PrefixExpression, Program, Statement,
+    IntegerLiteral, PrefixExpression, Program, ReturnStatement, Statement,
 };
 use crate::object::Object;
 use crate::token::Token;
@@ -17,6 +17,11 @@ impl Eval for Program {
 
         for stmt in &self.statements {
             result = stmt.eval();
+
+            match result {
+                Object::Return(value) => return *value,
+                _ => continue,
+            }
         }
 
         result
@@ -30,6 +35,14 @@ impl Eval for dyn Statement {
                 .as_ref()
                 .expect("error missing expression")
                 .eval()
+        } else if let Some(exp) = self.as_any().downcast_ref::<ReturnStatement>() {
+            let result = exp
+                .return_value
+                .as_ref()
+                .expect("error missing expression")
+                .eval();
+
+            Object::Return(Box::new(result))
         } else {
             Object::Null
         }
@@ -104,25 +117,30 @@ impl Eval for dyn Expression {
             };
 
             if is_truthy {
-                eval_statements(&exp.consequence.statements)
+                eval_block_statements(&exp.consequence.statements)
             } else if let Some(aternative) = &exp.alternative {
-                eval_statements(&aternative.statements)
+                eval_block_statements(&aternative.statements)
             } else {
                 Object::Null
             }
         } else if let Some(exp) = self.as_any().downcast_ref::<BlockStatement>() {
-            eval_statements(&exp.statements)
+            eval_block_statements(&exp.statements)
         } else {
             Object::Null
         }
     }
 }
 
-fn eval_statements(statements: &Vec<Box<dyn Statement>>) -> Object {
+fn eval_block_statements(statements: &Vec<Box<dyn Statement>>) -> Object {
     let mut result: Object = Object::Null;
 
     for stmt in statements {
         result = stmt.eval();
+
+        match result {
+            Object::Return(_) => return result,
+            _ => continue,
+        }
     }
 
     result
@@ -246,6 +264,21 @@ mod evaluator_test {
         }
     }
 
+    #[test]
+    fn test_return_statements() {
+        let tests = vec![
+            ("return 10;", 10),
+            ("return 10; 9;", 10),
+            ("return 2 * 5; 9;", 10),
+            ("9; return 2 * 5; 9;", 10),
+            ("if (10 > 1) { if (10 > 1) { return 10; } return 1; }", 10),
+        ];
+
+        for (input, expected) in tests {
+            let evaluated = test_eval(input.into());
+            assert_eq!(evaluated.inspect(), expected.to_string())
+        }
+    }
     fn test_eval(input: String) -> Object {
         let lexer = Lexer::new(input);
         let mut parser = Parser::new(lexer);
