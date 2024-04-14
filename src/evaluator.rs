@@ -1,4 +1,5 @@
 use core::panic;
+use std::mem::discriminant;
 
 use crate::ast::{
     self, AnyNode, BlockStatement, Expression, ExpressionStatement, Identifier, IfExpression,
@@ -168,7 +169,7 @@ impl Eval for dyn Expression {
                         exp.operator.string(),
                     )),
                 },
-                _ => match left != right {
+                _ => match discriminant(&left) != discriminant(&right) {
                     true => Object::Error(format!(
                         "type mismatch: {} {} {}",
                         left,
