@@ -17,8 +17,27 @@ pub trait Node: AnyNode {
     fn string(&self) -> String;
 }
 
-pub trait Statement: Node {
+pub trait StatementClone {
+    fn clone_statement(&self) -> Box<dyn Statement>;
+}
+
+impl<T> StatementClone for T
+where
+    T: 'static + Statement + Clone,
+{
+    fn clone_statement(&self) -> Box<dyn Statement> {
+        Box::new(self.clone())
+    }
+}
+
+pub trait Statement: Node + StatementClone {
     fn statement_node(&self) -> &Token;
+}
+
+impl Clone for Box<dyn Statement> {
+    fn clone(&self) -> Self {
+        self.clone_statement()
+    }
 }
 
 impl Debug for dyn Statement {
@@ -27,8 +46,27 @@ impl Debug for dyn Statement {
     }
 }
 
-pub trait Expression: Node {
+pub trait ExpressionClone {
+    fn clone_expression(&self) -> Box<dyn Expression>;
+}
+
+impl<T> ExpressionClone for T
+where
+    T: 'static + Expression + Clone,
+{
+    fn clone_expression(&self) -> Box<dyn Expression> {
+        Box::new(self.clone())
+    }
+}
+
+pub trait Expression: Node + ExpressionClone {
     fn expression_node(&self);
+}
+
+impl Clone for Box<dyn Expression> {
+    fn clone(&self) -> Self {
+        self.clone_expression()
+    }
 }
 
 impl Debug for dyn Expression {
@@ -43,7 +81,7 @@ impl Display for dyn Expression {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Program {
     pub statements: Vec<Box<dyn Statement>>,
 }
@@ -76,20 +114,20 @@ impl Node for Program {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LetStatement {
     pub token: Token,
     pub name: Identifier,
     pub value: Option<Box<dyn Expression>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ReturnStatement {
     pub token: Token,
     pub return_value: Option<Box<dyn Expression>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ExpressionStatement {
     pub token: Token,
     pub expression: Option<Box<dyn Expression>>,
@@ -176,7 +214,7 @@ impl Statement for ExpressionStatement {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Identifier {
     pub token: Token,
 }
@@ -201,7 +239,7 @@ impl Expression for Identifier {
     fn expression_node(&self) {}
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct IntegerLiteral {
     pub token: Token,
 }
@@ -225,7 +263,7 @@ impl Expression for IntegerLiteral {
     fn expression_node(&self) {}
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PrefixExpression {
     pub token: Token,
     pub right: Option<Box<dyn Expression>>,
@@ -249,7 +287,7 @@ impl Expression for PrefixExpression {
     fn expression_node(&self) {}
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct InfixExpression {
     pub token: Token,
     pub right: Option<Box<dyn Expression>>,
@@ -278,7 +316,7 @@ impl Expression for InfixExpression {
     fn expression_node(&self) {}
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Boolean {
     pub token: Token,
 }
@@ -303,7 +341,7 @@ impl Expression for Boolean {
     fn expression_node(&self) {}
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct IfExpression {
     pub token: Token,
     pub condition: Box<dyn Expression>,
@@ -337,7 +375,7 @@ impl Expression for IfExpression {
     fn expression_node(&self) {}
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BlockStatement {
     pub token: Token,
     pub statements: Vec<Box<dyn Statement>>,
@@ -363,7 +401,7 @@ impl Expression for BlockStatement {
     fn expression_node(&self) {}
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FunctionLiteral {
     pub token: Token,
     pub parameters: Vec<Identifier>,
@@ -398,7 +436,7 @@ impl Expression for FunctionLiteral {
     fn expression_node(&self) {}
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CallExpression {
     pub token: Token,
     pub function: Box<dyn Expression>,

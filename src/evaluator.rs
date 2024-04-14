@@ -2,12 +2,12 @@ use core::panic;
 use std::mem::discriminant;
 
 use crate::ast::{
-    self, AnyNode, BlockStatement, Expression, ExpressionStatement, Identifier, IfExpression,
-    InfixExpression, IntegerLiteral, LetStatement, PrefixExpression, Program, ReturnStatement,
-    Statement,
+    self, AnyNode, BlockStatement, Expression, ExpressionStatement, FunctionLiteral, Identifier,
+    IfExpression, InfixExpression, IntegerLiteral, LetStatement, PrefixExpression, Program,
+    ReturnStatement, Statement,
 };
 use crate::environment::Env;
-use crate::object::Object;
+use crate::object::{Function, Object};
 use crate::token::Token;
 
 pub trait Eval: AnyNode {
@@ -206,6 +206,13 @@ impl Eval for dyn Expression {
             }
         } else if let Some(exp) = self.as_any().downcast_ref::<BlockStatement>() {
             eval_block_statements(&exp.statements, env)
+        } else if let Some(func) = self.as_any().downcast_ref::<FunctionLiteral>() {
+            let function = Function {
+                body: func.body.clone(),
+                env: env.clone(),
+                parameters: func.parameters.clone(),
+            };
+            Object::Function(function)
         } else {
             Object::Null
         }
@@ -246,6 +253,7 @@ fn eval_bang(right: Object) -> Object {
 mod evaluator_test {
 
     use super::Eval;
+    use crate::ast::Node;
     use crate::environment::Env;
     use crate::lexer::Lexer;
     use crate::object::Object;
@@ -391,7 +399,6 @@ mod evaluator_test {
     }
 
     #[test]
-
     fn test_let_statements() {
         let tests = vec![
             ("let a = 5; a;", 5),
@@ -404,6 +411,30 @@ mod evaluator_test {
             let evaluated = test_eval(input.into());
 
             assert_eq!(evaluated.inspect(), expected.to_string())
+        }
+    }
+
+    #[test]
+    fn test_function_object() {
+        let input = "fn(x) { x + 2; };";
+
+        let evaluated = test_eval(input.into());
+
+        match evaluated {
+            Object::Function(function) => {
+                assert_eq!(function.parameters.len(), 1);
+                assert_eq!(
+                    function
+                        .parameters
+                        .get(0)
+                        .expect("missing parameter")
+                        .string(),
+                    "x"
+                );
+                let expected_body = "(x + 2)";
+                assert_eq!(function.body.string(), expected_body);
+            }
+            _ => panic!("Object is not a function"),
         }
     }
 
