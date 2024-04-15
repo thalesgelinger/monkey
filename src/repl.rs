@@ -16,6 +16,10 @@ const MONKEY_FACE: &str = r#"
 "#;
 
 pub fn start_repl() {
+
+    println!("Hello! This is the Monkey programming language!");
+    println!("Feel free to type in commands");
+
     let mut env = Env::new();
     loop {
         let mut input = String::new();

@@ -520,7 +520,7 @@ mod evaluator_test {
     #[test]
     fn test_closures() {
         let input =
-            " let newAdder = fn(x) { fn(y) { x + y }; }; let addTwo = newAdder(2); addTwo(2);";
+            "let newAdder = fn(x) { fn(y) { x + y }; }; let addTwo = newAdder(2); addTwo(2);";
         assert_eq!(test_eval(input.into()).inspect(), 4.to_string())
     }
 
