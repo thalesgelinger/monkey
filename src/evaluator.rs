@@ -1,7 +1,7 @@
 use core::panic;
 use std::mem::discriminant;
 
-use crate::ast::{Expression, Program, Statement};
+use crate::ast::{Expression, Node, Program, Statement};
 use crate::environment::Env;
 use crate::object::{Function, Object};
 use crate::token::Token;
@@ -217,10 +217,13 @@ impl Eval for Expression {
             }
             Expression::Call(call) => {
                 let function = call.function.eval(env);
-                match function {
+                let mut function = match function {
                     Object::Error(_) => return function,
-                    _ => (),
-                }
+                    Object::Function(f) => f,
+                    _ => panic!("This is not a function"),
+                };
+
+                function.env = env.clone();
 
                 let args = eval_expressions(&call.arguments, env);
 
@@ -236,12 +239,7 @@ impl Eval for Expression {
     }
 }
 
-fn apply_function(func: &Object, args: &Vec<Object>) -> Object {
-    let function = match func {
-        Object::Function(f) => f,
-        _ => return Object::Error(format!("not a function: {}", func)),
-    };
-
+fn apply_function(function: &Function, args: &Vec<Object>) -> Object {
     let mut extended_env = extended_function_env(function, args);
     let evaluated = eval_block_statements(&function.body.statements, &mut extended_env);
 
