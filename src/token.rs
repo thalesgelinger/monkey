@@ -1,4 +1,3 @@
-
 #[warn(dead_code)]
 #[derive(Debug, PartialEq, Clone, Eq, Hash)]
 pub enum Token {
@@ -41,7 +40,6 @@ pub enum Token {
     Else,
     Return,
 }
-
 
 impl Token {
     pub fn string(&self) -> String {
