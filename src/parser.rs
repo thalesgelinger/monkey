@@ -55,7 +55,7 @@ impl Parser {
         program
     }
 
-    fn parse_statement(&mut self) -> Option<Box<dyn Statement>> {
+    fn parse_statement(&mut self) -> Option<Statement> {
         match self.current_token {
             Token::Let => self.parse_let_statement(),
             Token::Return => self.parse_return_statement(),
@@ -63,7 +63,7 @@ impl Parser {
         }
     }
 
-    fn parse_let_statement(&mut self) -> Option<Box<dyn Statement>> {
+    fn parse_let_statement(&mut self) -> Option<Statement> {
         let let_token = self.current_token.clone();
 
         let name = match self.peek_token.clone() {
@@ -86,7 +86,10 @@ impl Parser {
 
         self.next_token();
 
-        let value = self.parse_expression(Precedence::Lowest);
+        let value = match self.parse_expression(Precedence::Lowest) {
+            Some(value) => Some(*value),
+            None => None,
+        };
 
         if self.peek_token == Token::Semicolon {
             self.next_token();
@@ -98,7 +101,7 @@ impl Parser {
             value,
         };
 
-        Some(Box::new(statement))
+        Some(Statement::Let(statement))
     }
 
     fn peek_error(&mut self, token: Token) {
@@ -110,12 +113,15 @@ impl Parser {
         self.errors.push(msg)
     }
 
-    fn parse_return_statement(&mut self) -> Option<Box<dyn Statement>> {
+    fn parse_return_statement(&mut self) -> Option<Statement> {
         let return_token = self.current_token.clone();
 
         self.next_token();
 
-        let return_value = self.parse_expression(Precedence::Lowest);
+        let return_value = match self.parse_expression(Precedence::Lowest) {
+            Some(value) => Some(*value),
+            None => None,
+        };
 
         if self.peek_token == Token::Semicolon {
             self.next_token();
@@ -126,11 +132,14 @@ impl Parser {
             return_value,
         };
 
-        Some(Box::new(statement))
+        Some(Statement::Return(statement))
     }
 
-    fn parse_expression_statement(&mut self) -> Option<Box<dyn Statement>> {
-        let expression = self.parse_expression(Precedence::Lowest);
+    fn parse_expression_statement(&mut self) -> Option<Statement> {
+        let expression = match self.parse_expression(Precedence::Lowest) {
+            Some(value) => Some(*value),
+            None => None,
+        };
 
         if self.peek_token == Token::Semicolon {
             self.next_token()
@@ -141,12 +150,12 @@ impl Parser {
             expression,
         };
 
-        Some(Box::new(statement))
+        Some(Statement::Expression(statement))
     }
 
-    fn parse_expression(&mut self, precedence: Precedence) -> Option<Box<dyn Expression>> {
+    fn parse_expression(&mut self, precedence: Precedence) -> Option<Box<Expression>> {
         let mut left_exp = match self.prefix_parse_fns() {
-            Some(expression) => Some(expression),
+            Some(expression) => Some(Box::new(expression)),
             None => {
                 self.no_prefix_parse_fn_error(self.current_token.clone());
                 return None;
@@ -160,32 +169,32 @@ impl Parser {
         left_exp
     }
 
-    fn prefix_parse_fns(&mut self) -> Option<Box<dyn Expression>> {
+    fn prefix_parse_fns(&mut self) -> Option<Expression> {
         let token = &self.current_token;
         match token {
             Token::Ident(_) => {
-                let ident = Box::new(Identifier {
+                let ident = Identifier {
                     token: token.clone(),
-                });
-                Some(ident)
+                };
+                Some(Expression::Identifier(ident))
             }
             Token::Int(_) => {
-                let ident = Box::new(IntegerLiteral {
+                let ident = IntegerLiteral {
                     token: token.clone(),
-                });
-                Some(ident)
+                };
+                Some(Expression::Int(ident))
             }
             Token::Bang => self.parse_prefix_expression(),
             Token::Minus => self.parse_prefix_expression(),
             Token::True => {
                 let boolean = Boolean { token: Token::True };
-                Some(Box::new(boolean))
+                Some(Expression::Boolean(boolean))
             }
             Token::False => {
                 let boolean = Boolean {
                     token: Token::False,
                 };
-                Some(Box::new(boolean))
+                Some(Expression::Boolean(boolean))
             }
             Token::Lparen => self.parse_grouped_expression(),
             Token::If => self.parse_if_expression(),
@@ -194,10 +203,7 @@ impl Parser {
         }
     }
 
-    fn infix_parse_fns(
-        &mut self,
-        left: Option<Box<dyn Expression>>,
-    ) -> Option<Box<dyn Expression>> {
+    fn infix_parse_fns(&mut self, left: Option<Box<Expression>>) -> Option<Box<Expression>> {
         let token = &self.peek_token;
         match token {
             Token::Plus => {
@@ -249,7 +255,7 @@ impl Parser {
         self.errors.push(msg)
     }
 
-    fn parse_prefix_expression(&mut self) -> Option<Box<dyn Expression>> {
+    fn parse_prefix_expression(&mut self) -> Option<Expression> {
         let mut expression = PrefixExpression {
             token: self.current_token.clone(),
             operator: self.current_token.clone(),
@@ -260,7 +266,7 @@ impl Parser {
 
         expression.right = self.parse_expression(Precedence::Prefix);
 
-        Some(Box::new(expression))
+        Some(Expression::Prefix(expression))
     }
 
     fn peek_precendence(&self) -> Precedence {
@@ -292,10 +298,7 @@ impl Parser {
         }
     }
 
-    fn parse_infix_expression(
-        &mut self,
-        left: Option<Box<dyn Expression>>,
-    ) -> Option<Box<dyn Expression>> {
+    fn parse_infix_expression(&mut self, left: Option<Box<Expression>>) -> Option<Box<Expression>> {
         let mut expression = InfixExpression {
             token: self.current_token.clone(),
             operator: self.current_token.clone(),
@@ -307,7 +310,7 @@ impl Parser {
         self.next_token();
         expression.right = self.parse_expression(precedence);
 
-        Some(Box::new(expression))
+        Some(Box::new(Expression::Infix(expression)))
     }
 
     fn expect_peek(&mut self, token: Token) -> bool {
@@ -320,7 +323,7 @@ impl Parser {
         }
     }
 
-    fn parse_grouped_expression(&mut self) -> Option<Box<dyn Expression>> {
+    fn parse_grouped_expression(&mut self) -> Option<Expression> {
         self.next_token();
 
         let exp = self.parse_expression(Precedence::Lowest);
@@ -329,10 +332,13 @@ impl Parser {
             return None;
         }
 
-        exp
+        match exp {
+            Some(e) => Some(*e),
+            None => None,
+        }
     }
 
-    fn parse_if_expression(&mut self) -> Option<Box<dyn Expression>> {
+    fn parse_if_expression(&mut self) -> Option<Expression> {
         let token = &self.current_token.clone();
 
         if !self.expect_peek(Token::Lparen) {
@@ -371,7 +377,7 @@ impl Parser {
                 consequence,
                 alternative,
             };
-            return Some(Box::new(expression));
+            return Some(Expression::If(expression));
         }
 
         let expression = IfExpression {
@@ -380,12 +386,12 @@ impl Parser {
             consequence,
             alternative: None,
         };
-        Some(Box::new(expression))
+        Some(Expression::If(expression))
     }
 
     fn parse_block_statement(&mut self) -> BlockStatement {
         let token = &self.current_token.clone();
-        let mut statements: Vec<Box<dyn Statement>> = vec![];
+        let mut statements: Vec<Statement> = vec![];
 
         self.next_token();
 
@@ -405,7 +411,7 @@ impl Parser {
         block
     }
 
-    fn parse_function_literal(&mut self) -> Option<Box<dyn Expression>> {
+    fn parse_function_literal(&mut self) -> Option<Expression> {
         let token = self.current_token.clone();
 
         if !self.expect_peek(Token::Lparen) {
@@ -428,7 +434,7 @@ impl Parser {
             body,
         };
 
-        Some(Box::new(lit))
+        Some(Expression::Function(lit))
     }
 
     fn parse_function_parameters(&mut self) -> Option<Vec<Identifier>> {
@@ -464,8 +470,8 @@ impl Parser {
 
     fn parse_call_expression(
         &mut self,
-        function: Option<Box<dyn Expression>>,
-    ) -> Option<Box<dyn Expression>> {
+        function: Option<Box<Expression>>,
+    ) -> Option<Box<Expression>> {
         let token = self.current_token.clone();
         let arguments = self
             .parse_call_arguments()
@@ -475,10 +481,10 @@ impl Parser {
             function: function.expect("Missing function"),
             arguments,
         };
-        Some(Box::new(call))
+        Some(Box::new(Expression::Call(call)))
     }
 
-    fn parse_call_arguments(&mut self) -> Option<Vec<Box<dyn Expression>>> {
+    fn parse_call_arguments(&mut self) -> Option<Vec<Box<Expression>>> {
         let mut args = vec![];
 
         if self.peek_token == Token::Rparen {
@@ -514,11 +520,7 @@ impl Parser {
 mod parser_tests {
 
     use super::Parser;
-    use crate::ast::{
-         Boolean, CallExpression, Expression, ExpressionStatement, FunctionLiteral,
-        Identifier, IfExpression, InfixExpression, IntegerLiteral, LetStatement, 
-        PrefixExpression,  ReturnStatement, Statement,
-    };
+    use crate::ast::{Expression, Identifier, Node, Statement};
     use crate::lexer::Lexer;
     use crate::token::Token;
 
@@ -543,49 +545,31 @@ mod parser_tests {
             assert_eq!(program.statements.len(), 1);
 
             let let_stmt = match program.statements.first() {
-                Some(s) => {
-                    let cast = s.as_any().downcast_ref::<LetStatement>();
-                    match cast {
-                        Some(statement) => Box::new(statement),
-                        None => panic!("Error creating Let Statement"),
-                    }
-                }
+                Some(s) => match s {
+                    Statement::Let(stmt) => stmt,
+                    _ => panic!("Error creating Let Statement"),
+                },
                 None => panic!("There's no statement here"),
             };
 
             assert_eq!(let_stmt.name, Identifier { token: ident });
 
-            match expected_value {
-                Token::Ident(_) => match let_stmt.value.as_ref() {
-                    Some(e) => match e.as_any().downcast_ref::<Identifier>() {
-                        Some(function) => {
-                            let exp = Box::new(function);
-                            assert_eq!(exp.token, expected_value);
-                        }
-                        None => panic!("Error casting integer"),
-                    },
-                    None => panic!("There's no expression"),
-                },
-                Token::Int(_) => match let_stmt.value.as_ref() {
-                    Some(e) => match e.as_any().downcast_ref::<IntegerLiteral>() {
-                        Some(function) => {
-                            let exp = Box::new(function);
-                            assert_eq!(exp.token, expected_value);
-                        }
-                        None => panic!("Error casting integer"),
-                    },
-                    None => panic!("There's no expression"),
-                },
-                Token::True | Token::False => match let_stmt.value.as_ref() {
-                    Some(e) => match e.as_any().downcast_ref::<Boolean>() {
-                        Some(function) => {
-                            let exp = Box::new(function);
-                            assert_eq!(exp.token, expected_value);
-                        }
-                        None => panic!("Error casting integer"),
-                    },
-                    None => panic!("There's no expression"),
-                },
+            match (
+                &expected_value,
+                let_stmt
+                    .value
+                    .as_ref()
+                    .expect("Error getting let statemnet value"),
+            ) {
+                (Token::Ident(_), Expression::Identifier(function)) => {
+                    assert_eq!(function.token, expected_value);
+                }
+                (Token::Int(_), Expression::Int(function)) => {
+                    assert_eq!(function.token, expected_value);
+                }
+                (Token::True | Token::False, Expression::Boolean(boolean)) => {
+                    assert_eq!(boolean.token, expected_value);
+                }
                 _ => panic!("No test implement yet"),
             };
         }
@@ -608,49 +592,30 @@ mod parser_tests {
             assert_eq!(program.statements.len(), 1);
 
             let stmt = match program.statements.first() {
-                Some(s) => {
-                    let cast = s.as_any().downcast_ref::<ReturnStatement>();
-                    match cast {
-                        Some(statement) => Box::new(statement),
-                        None => panic!("Error creating ReturnStatement"),
-                    }
-                }
+                Some(s) => match s {
+                    Statement::Return(statement) => statement,
+                    _ => panic!("Error creating ReturnStatement"),
+                },
                 None => panic!("There's no statement here"),
             };
 
             assert_eq!(stmt.token, ident);
 
-            match expected_value {
-                Token::Ident(_) => match stmt.return_value.as_ref() {
-                    Some(e) => match e.as_any().downcast_ref::<Identifier>() {
-                        Some(function) => {
-                            let exp = Box::new(function);
-                            assert_eq!(exp.token, expected_value);
-                        }
-                        None => panic!("Error casting integer"),
-                    },
-                    None => panic!("There's no expression"),
-                },
-                Token::Int(_) => match stmt.return_value.as_ref() {
-                    Some(e) => match e.as_any().downcast_ref::<IntegerLiteral>() {
-                        Some(function) => {
-                            let exp = Box::new(function);
-                            assert_eq!(exp.token, expected_value);
-                        }
-                        None => panic!("Error casting integer"),
-                    },
-                    None => panic!("There's no expression"),
-                },
-                Token::True | Token::False => match stmt.return_value.as_ref() {
-                    Some(e) => match e.as_any().downcast_ref::<Boolean>() {
-                        Some(function) => {
-                            let exp = Box::new(function);
-                            assert_eq!(exp.token, expected_value);
-                        }
-                        None => panic!("Error casting integer"),
-                    },
-                    None => panic!("There's no expression"),
-                },
+            match (
+                &expected_value,
+                stmt.return_value
+                    .as_ref()
+                    .expect("Error getting return value"),
+            ) {
+                (Token::Ident(_), Expression::Identifier(function)) => {
+                    assert_eq!(function.token, expected_value);
+                }
+                (Token::Int(_), Expression::Int(function)) => {
+                    assert_eq!(function.token, expected_value);
+                }
+                (Token::True | Token::False, Expression::Boolean(boolean)) => {
+                    assert_eq!(boolean.token, expected_value);
+                }
                 _ => panic!("No test implement yet"),
             };
         }
@@ -666,20 +631,18 @@ mod parser_tests {
         check_parse_errors(parser.errors);
         assert_eq!(program.statements.len(), 1);
 
-        let stmt = match program.statements.first() {
-            Some(s) => match s.as_any().downcast_ref::<ExpressionStatement>() {
-                Some(statement) => Box::new(statement),
-                None => panic!("Error creating ExpressionStatement"),
-            },
-            None => panic!("There's no statement here"),
+        let stmt = match program
+            .statements
+            .first()
+            .expect("There's no statement here")
+        {
+            Statement::Expression(statement) => Box::new(statement),
+            _ => panic!("Error creating ExpressionStatement"),
         };
 
-        let ident = match stmt.expression.as_ref() {
-            Some(e) => match e.as_any().downcast_ref::<Identifier>() {
-                Some(expression) => Box::new(expression),
-                None => panic!("Error casting expression identifier"),
-            },
-            None => panic!("There's no expression"),
+        let ident = match stmt.expression.as_ref().expect("There's no expression") {
+            Expression::Identifier(expression) => expression,
+            _ => panic!("Error casting expression identifier"),
         };
 
         assert_eq!(ident.token, Token::Ident(String::from("foobar")));
@@ -696,20 +659,18 @@ mod parser_tests {
 
         assert_eq!(program.statements.len(), 1);
 
-        let stmt = match program.statements.first() {
-            Some(s) => match s.as_any().downcast_ref::<ExpressionStatement>() {
-                Some(statement) => Box::new(statement),
-                None => panic!("Error creating ExpressionStatement"),
-            },
-            None => panic!("There's no statement here"),
+        let stmt = match program
+            .statements
+            .first()
+            .expect("There's no statement here")
+        {
+            Statement::Expression(statement) => Box::new(statement),
+            _ => panic!("Error creating ExpressionStatement"),
         };
 
-        let ident = match stmt.expression.as_ref() {
-            Some(e) => match e.as_any().downcast_ref::<IntegerLiteral>() {
-                Some(expression) => Box::new(expression),
-                None => panic!("Error casting expression identifier"),
-            },
-            None => panic!("There's no expression"),
+        let ident = match stmt.expression.as_ref().expect("There's no expression") {
+            Expression::Int(expression) => expression,
+            _ => panic!("Error casting expression identifier"),
         };
 
         assert_eq!(ident.token, Token::Int(5));
@@ -726,20 +687,18 @@ mod parser_tests {
             check_parse_errors(parser.errors);
             assert_eq!(program.statements.len(), 1);
 
-            let stmt = match program.statements.first() {
-                Some(s) => match s.as_any().downcast_ref::<ExpressionStatement>() {
-                    Some(statement) => Box::new(statement),
-                    None => panic!("Error creating ExpressionStatement"),
-                },
-                None => panic!("There's no statement here"),
+            let stmt = match program
+                .statements
+                .first()
+                .expect("There's no statement here")
+            {
+                Statement::Expression(statement) => Box::new(statement),
+                _ => panic!("Error creating ExpressionStatement"),
             };
 
-            let ident = match stmt.expression.as_ref() {
-                Some(e) => match e.as_any().downcast_ref::<Boolean>() {
-                    Some(expression) => Box::new(expression),
-                    None => panic!("Error casting expression identifier"),
-                },
-                None => panic!("There's no expression"),
+            let ident = match stmt.expression.as_ref().expect("There's no expression") {
+                Expression::Boolean(expression) => expression,
+                _ => panic!("Error casting expression identifier"),
             };
 
             assert_eq!(ident.token, expected);
@@ -763,25 +722,26 @@ mod parser_tests {
 
             assert_eq!(program.statements.len(), 1);
 
-            let stmt = match program.statements.first() {
-                Some(s) => match s.as_any().downcast_ref::<ExpressionStatement>() {
-                    Some(statement) => Box::new(statement),
-                    None => panic!("Error creating ExpressionStatement"),
-                },
-                None => panic!("There's no statement here"),
+            let stmt = match program
+                .statements
+                .first()
+                .expect("There's no statement here")
+            {
+                Statement::Expression(statement) => Box::new(statement),
+                _ => panic!("Error creating ExpressionStatement"),
             };
 
-            let expression = match stmt.expression.as_ref() {
-                Some(e) => match e.as_any().downcast_ref::<PrefixExpression>() {
-                    Some(expression) => Box::new(expression),
-                    None => panic!("Error casting expression identifier"),
-                },
-                None => panic!("There's no expression"),
+            let expression = match stmt.expression.as_ref().expect("There's no expression") {
+                Expression::Prefix(expression) => expression,
+                _ => panic!("Error casting expression identifier"),
             };
 
             assert_eq!(expression.operator, operator);
 
-            test_expression(&expression.right, value);
+            test_expression(
+                &*expression.right.as_ref().expect("Missing right expression"),
+                &value,
+            );
         }
     }
 
@@ -810,59 +770,45 @@ mod parser_tests {
 
             assert_eq!(program.statements.len(), 1);
 
-            let stmt = match program.statements.first() {
-                Some(s) => match s.as_any().downcast_ref::<ExpressionStatement>() {
-                    Some(statement) => Box::new(statement),
-                    None => panic!("Error creating ExpressionStatement"),
-                },
-                None => panic!("There's no statement here"),
+            let stmt = match program
+                .statements
+                .first()
+                .expect("There's no statement here")
+            {
+                Statement::Expression(statement) => Box::new(statement),
+                _ => panic!("Error creating ExpressionStatement"),
             };
 
-            let expression = match stmt.expression.as_ref() {
-                Some(e) => match e.as_any().downcast_ref::<InfixExpression>() {
-                    Some(expression) => Box::new(expression),
-                    None => panic!("Error casting expression identifier"),
-                },
-                None => panic!("There's no expression"),
+            let expression = match stmt.expression.as_ref().expect("There's no expression") {
+                Expression::Infix(expression) => expression,
+                _ => panic!("Error casting expression identifier"),
             };
 
             assert_eq!(expression.operator, operator);
 
-            test_expression(&expression.right, right_token);
-            test_expression(&expression.left, left_token);
+            test_expression(
+                &*expression.right.as_ref().expect("Missing right expression"),
+                &right_token,
+            );
+            test_expression(
+                &*expression.left.as_ref().expect("Missing left expression"),
+                &left_token,
+            );
         }
     }
 
-    fn test_expression(expression: &Option<Box<dyn Expression>>, expected_token: Token) {
-        match expression.as_ref() {
-            Some(e) => match expected_token {
-                Token::Int(_) => {
-                    let e = match e.as_any().downcast_ref::<IntegerLiteral>() {
-                        Some(expression) => Box::new(expression),
-                        None => panic!("Error casting expression integer"),
-                    };
-
-                    assert_eq!(e.token, expected_token);
-                }
-                Token::Ident(_) => {
-                    let e = match e.as_any().downcast_ref::<Identifier>() {
-                        Some(expression) => Box::new(expression),
-                        None => panic!("Error casting expression integer"),
-                    };
-
-                    assert_eq!(e.token, expected_token);
-                }
-                Token::True | Token::False => {
-                    let e = match e.as_any().downcast_ref::<Boolean>() {
-                        Some(expression) => Box::new(expression),
-                        None => panic!("Error casting expression boolean"),
-                    };
-
-                    assert_eq!(e.token, expected_token);
-                }
-                _ => panic!("Test not implemented yet for token: {:?}", expected_token),
-            },
-            None => panic!("There's no expression"),
+    fn test_expression(expression: &Expression, expected_token: &Token) {
+        match (expected_token, expression) {
+            (Token::Ident(_), Expression::Identifier(function)) => {
+                assert_eq!(&function.token, expected_token);
+            }
+            (Token::Int(_), Expression::Int(function)) => {
+                assert_eq!(&function.token, expected_token);
+            }
+            (Token::True | Token::False, Expression::Boolean(boolean)) => {
+                assert_eq!(&boolean.token, expected_token);
+            }
+            _ => panic!("No test implement yet"),
         };
     }
 
@@ -926,32 +872,29 @@ mod parser_tests {
 
         assert_eq!(program.statements.len(), 1);
 
-        let stmt = match program.statements.first() {
-            Some(s) => match s.as_any().downcast_ref::<ExpressionStatement>() {
-                Some(statement) => Box::new(statement),
-                None => panic!("Error creating ExpressionStatement"),
-            },
-            None => panic!("There's no statement here"),
+        let stmt = match program
+            .statements
+            .first()
+            .expect("There's no statement here")
+        {
+            Statement::Expression(statement) => Box::new(statement),
+            _ => panic!("Error creating ExpressionStatement"),
         };
 
-        let expression = match stmt.expression.as_ref() {
-            Some(e) => match e.as_any().downcast_ref::<IfExpression>() {
-                Some(expression) => Box::new(expression),
-                None => panic!("Error casting expression if"),
-            },
-            None => panic!("There's no expression"),
+        let expression = match stmt.expression.as_ref().expect("Tere's no expression") {
+            Expression::If(expression) => expression,
+            _ => panic!("Error casting expression identifier"),
         };
 
-        assert_eq!(expression.condition.string(), "(x < y)");
+        let condition = expression.condition.clone();
+
+        assert_eq!(condition.string(), "(x < y)");
 
         assert_eq!(expression.consequence.statements.len(), 1);
 
-        let consequence = match expression.consequence.statements.first() {
-            Some(s) => match s.as_any().downcast_ref::<ExpressionStatement>() {
-                Some(statement) => Box::new(statement),
-                None => panic!("Error creating consequence ExpressionStatement"),
-            },
-            None => panic!("There's no statement here"),
+        let consequence = match expression.consequence.statements.first().unwrap() {
+            Statement::Expression(s) => s,
+            _ => panic!("There's no statement here"),
         };
 
         assert_eq!(consequence.token, Token::Ident("x".to_string()));
@@ -972,56 +915,46 @@ mod parser_tests {
 
         assert_eq!(program.statements.len(), 1);
 
-        let stmt = match program.statements.first() {
-            Some(s) => match s.as_any().downcast_ref::<ExpressionStatement>() {
-                Some(statement) => Box::new(statement),
-                None => panic!("Error creating ExpressionStatement"),
-            },
-            None => panic!("There's no statement here"),
+        let stmt = match program
+            .statements
+            .first()
+            .expect("There's no statement here")
+        {
+            Statement::Expression(statement) => Box::new(statement),
+            _ => panic!("Error creating ExpressionStatement"),
         };
 
-        let expression = match stmt.expression.as_ref() {
-            Some(e) => match e.as_any().downcast_ref::<IfExpression>() {
-                Some(expression) => Box::new(expression),
-                None => panic!("Error casting expression if"),
-            },
-            None => panic!("There's no expression"),
+        let expression = match stmt.expression.as_ref().expect("There's no expression") {
+            Expression::If(expression) => expression,
+            _ => panic!("Error casting expression identifier"),
         };
 
         assert_eq!(expression.condition.string(), "(x < y)");
 
         assert_eq!(expression.consequence.statements.len(), 1);
 
-        let consequence = match expression.consequence.statements.first() {
-            Some(s) => match s.as_any().downcast_ref::<ExpressionStatement>() {
-                Some(statement) => Box::new(statement),
-                None => panic!("Error creating consequence ExpressionStatement"),
-            },
-            None => panic!("There's no statement here"),
+        let consequence = match expression.consequence.statements.first().unwrap() {
+            Statement::Expression(s) => s,
+            _ => panic!("There's no statement here"),
         };
 
         assert_eq!(consequence.token, Token::Ident("x".to_string()));
 
-        let alternative = match &expression.alternative {
-            Some(block) => match block
-                .statements
-                .first()
-                .unwrap()
-                .as_any()
-                .downcast_ref::<ExpressionStatement>()
-            {
-                Some(statement) => Box::new(statement),
-                None => panic!("Error creating ExpressionStatement"),
-            },
-            None => panic!("There's no statement here"),
+        let alternative = expression
+            .alternative
+            .as_ref()
+            .expect("Missing alternative");
+
+        assert_eq!(alternative.statements.len(), 1);
+
+        let alternative_stmt = match alternative.statements.first().unwrap() {
+            Statement::Expression(s) => s,
+            _ => panic!("There's no statement here"),
         };
 
-        let alternative = match alternative.expression.as_ref() {
-            Some(e) => match e.as_any().downcast_ref::<Identifier>() {
-                Some(expression) => Box::new(expression),
-                None => panic!("Error casting expression else"),
-            },
-            None => panic!("There's no expression"),
+        let alternative = match alternative_stmt.expression.as_ref().unwrap() {
+            Expression::Identifier(e) => e,
+            _ => panic!("There's no expression"),
         };
 
         assert_eq!(alternative.token, Token::Ident("y".to_string()));
@@ -1038,23 +971,18 @@ mod parser_tests {
 
         assert_eq!(program.statements.len(), 1);
 
-        let stmt = match program.statements.first() {
-            Some(s) => {
-                let cast = s.as_any().downcast_ref::<ExpressionStatement>();
-                match cast {
-                    Some(statement) => Box::new(statement),
-                    None => panic!("Error creating ExpressionStatement"),
-                }
-            }
-            None => panic!("There's no statement here"),
+        let stmt = match program
+            .statements
+            .first()
+            .expect("There's no statement here")
+        {
+            Statement::Expression(statement) => Box::new(statement),
+            _ => panic!("Error creating ExpressionStatement"),
         };
 
-        let function = match stmt.expression.as_ref() {
-            Some(e) => match e.as_any().downcast_ref::<FunctionLiteral>() {
-                Some(function) => Box::new(function),
-                None => panic!("Error casting function if"),
-            },
-            None => panic!("There's no expression"),
+        let function = match stmt.expression.as_ref().expect("Missing expression") {
+            Expression::Function(e) => e,
+            _ => panic!("There's no expression"),
         };
 
         assert_eq!(function.parameters.len(), 2);
@@ -1088,28 +1016,26 @@ mod parser_tests {
         );
     }
 
-    fn test_infix_expression(
-        first: &Box<dyn Statement>,
-        left: Token,
-        operator: Token,
-        right: Token,
-    ) {
-        let body_stmt = match first.as_any().downcast_ref::<ExpressionStatement>() {
-            Some(expression) => Box::new(expression),
-            None => panic!("Error casting expression function expression"),
+    fn test_infix_expression(first: &Statement, left: Token, operator: Token, right: Token) {
+        let body_stmt = match first {
+            Statement::Expression(expression) => expression,
+            _ => panic!("Error casting expression function expression"),
         };
 
-        let infix = match body_stmt.expression.as_ref() {
-            Some(e) => match e.as_any().downcast_ref::<InfixExpression>() {
-                Some(function) => Box::new(function),
-                None => panic!("Error casting function if"),
-            },
-            None => panic!("There's no expression"),
+        let infix = match body_stmt.expression.as_ref().expect("Missing expression") {
+            Expression::Infix(e) => e,
+            _ => panic!("There's no expression"),
         };
 
-        test_expression(&infix.left, left);
+        test_expression(
+            &infix.left.as_ref().expect("Missing left expression"),
+            &left,
+        );
         assert_eq!(infix.operator, operator);
-        test_expression(&infix.right, right);
+        test_expression(
+            &infix.right.as_ref().expect("Missin right expression"),
+            &right,
+        );
     }
 
     #[test]
@@ -1123,23 +1049,18 @@ mod parser_tests {
 
         assert_eq!(program.statements.len(), 1);
 
-        let stmt = match program.statements.first() {
-            Some(s) => {
-                let cast = s.as_any().downcast_ref::<ExpressionStatement>();
-                match cast {
-                    Some(statement) => Box::new(statement),
-                    None => panic!("Error creating ExpressionStatement"),
-                }
-            }
-            None => panic!("There's no statement here"),
+        let stmt = match program
+            .statements
+            .first()
+            .expect("There's no statement here")
+        {
+            Statement::Expression(statement) => Box::new(statement),
+            _ => panic!("Error creating ExpressionStatement"),
         };
 
-        let call = match stmt.expression.as_ref() {
-            Some(e) => match e.as_any().downcast_ref::<CallExpression>() {
-                Some(function) => Box::new(function),
-                None => panic!("Error casting function if"),
-            },
-            None => panic!("There's no expression"),
+        let call = match stmt.expression.as_ref().expect("Missin call expression") {
+            Expression::Call(e) => e,
+            _ => panic!("There's no expression"),
         };
 
         assert_eq!(call.function.token_literal(), "add".to_string());
@@ -1154,27 +1075,33 @@ mod parser_tests {
             format!("{:?}", Token::Int(1))
         );
 
-        let second = match call.arguments.get(1) {
-            Some(e) => match e.as_any().downcast_ref::<InfixExpression>() {
-                Some(function) => Box::new(function),
-                None => panic!("Error casting function if"),
-            },
-            None => panic!("There's no expression"),
+        let second = match *call.arguments.get(1).unwrap().clone() {
+            Expression::Infix(e) => e,
+            _ => panic!("There's no expression"),
         };
-        test_expression(&second.left, Token::Int(2));
+        test_expression(
+            &second.left.expect("Missing left expression"),
+            &Token::Int(2),
+        );
         assert_eq!(second.operator, Token::Asterisk);
-        test_expression(&second.right, Token::Int(3));
+        test_expression(
+            &second.right.expect("Missing right expression"),
+            &Token::Int(3),
+        );
 
-        let third = match call.arguments.get(2) {
-            Some(e) => match e.as_any().downcast_ref::<InfixExpression>() {
-                Some(function) => Box::new(function),
-                None => panic!("Error casting function if"),
-            },
-            None => panic!("There's no expression"),
+        let third = match *call.arguments.get(2).unwrap().clone() {
+            Expression::Infix(e) => e,
+            _ => panic!("There's no expression"),
         };
-        test_expression(&third.left, Token::Int(4));
+        test_expression(
+            &third.left.expect("Missing right expression"),
+            &Token::Int(4),
+        );
         assert_eq!(third.operator, Token::Plus);
-        test_expression(&third.right, Token::Int(5));
+        test_expression(
+            &third.right.expect("Missing right expression"),
+            &Token::Int(5),
+        );
     }
 
     fn check_parse_errors(errors: Vec<String>) {

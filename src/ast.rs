@@ -6,6 +6,7 @@ pub trait Node {
     fn string(&self) -> String;
 }
 
+#[derive(Debug, Clone)]
 pub enum Statement {
     Let(LetStatement),
     Return(ReturnStatement),
@@ -30,8 +31,10 @@ impl Node for Statement {
     }
 }
 
+#[derive(Debug, Clone)]
 pub enum Expression {
     Identifier(Identifier),
+    Int(IntegerLiteral),
     Prefix(PrefixExpression),
     Infix(InfixExpression),
     Boolean(Boolean),
@@ -45,6 +48,7 @@ impl Node for Expression {
     fn token_literal(&self) -> String {
         match self {
             Expression::Identifier(ident) => ident.token_literal(),
+            Expression::Int(integer) => integer.token_literal(),
             Expression::Prefix(prefix) => prefix.token_literal(),
             Expression::Infix(infix) => infix.token_literal(),
             Expression::Boolean(boolean) => boolean.token_literal(),
@@ -58,6 +62,7 @@ impl Node for Expression {
     fn string(&self) -> String {
         match self {
             Expression::Identifier(ident) => ident.string(),
+            Expression::Int(integer) => integer.string(),
             Expression::Prefix(prefix) => prefix.string(),
             Expression::Infix(infix) => infix.string(),
             Expression::Boolean(boolean) => boolean.string(),
@@ -229,7 +234,7 @@ impl Node for IntegerLiteral {
 #[derive(Debug, Clone)]
 pub struct PrefixExpression {
     pub token: Token,
-    pub right: Option<Expression>,
+    pub right: Option<Box<Expression>>,
     pub operator: Token,
 }
 
@@ -249,9 +254,9 @@ impl Node for PrefixExpression {
 #[derive(Debug, Clone)]
 pub struct InfixExpression {
     pub token: Token,
-    pub right: Option<Expression>,
+    pub right: Option<Box<Expression>>,
     pub operator: Token,
-    pub left: Option<Expression>,
+    pub left: Option<Box<Expression>>,
 }
 
 impl Node for InfixExpression {
@@ -295,7 +300,7 @@ impl Node for Boolean {
 #[derive(Debug, Clone)]
 pub struct IfExpression {
     pub token: Token,
-    pub condition: Expression,
+    pub condition: Box<Expression>,
     pub consequence: BlockStatement,
     pub alternative: Option<BlockStatement>,
 }
@@ -378,8 +383,8 @@ impl Node for FunctionLiteral {
 #[derive(Debug, Clone)]
 pub struct CallExpression {
     pub token: Token,
-    pub function: Expression,
-    pub arguments: Vec<Expression>,
+    pub function: Box<Expression>,
+    pub arguments: Vec<Box<Expression>>,
 }
 
 impl Node for CallExpression {
@@ -408,18 +413,18 @@ impl Node for CallExpression {
 #[cfg(test)]
 mod ast_tests {
 
-    use super::{Identifier, LetStatement, Program};
-    use crate::token::Token;
+    use super::{Expression, Identifier, LetStatement, Program};
+    use crate::{ast::Statement, token::Token};
 
     #[test]
     fn test_string() {
         let program = Program {
-            statements: vec![Box::new(LetStatement {
+            statements: vec![Statement::Let(LetStatement {
                 token: Token::Let,
                 name: Identifier {
                     token: Token::Ident("myVar".to_string()),
                 },
-                value: Some(Box::new(Identifier {
+                value: Some(Expression::Identifier(Identifier {
                     token: Token::Ident("anotherVar".to_string()),
                 })),
             })],

@@ -1,16 +1,12 @@
 use core::panic;
 use std::mem::discriminant;
 
-use crate::ast::{
-    self, AnyNode, BlockStatement, CallExpression, Expression, ExpressionStatement,
-    FunctionLiteral, Identifier, IfExpression, InfixExpression, IntegerLiteral, LetStatement,
-    PrefixExpression, Program, ReturnStatement, Statement,
-};
+use crate::ast::{Expression, Program, Statement};
 use crate::environment::Env;
 use crate::object::{Function, Object};
 use crate::token::Token;
 
-pub trait Eval: AnyNode {
+pub trait Eval {
     fn eval(&self, env: &mut Env) -> Object;
 }
 
@@ -32,205 +28,210 @@ impl Eval for Program {
     }
 }
 
-impl Eval for dyn Statement {
+impl Eval for Statement {
     fn eval(&self, env: &mut Env) -> Object {
-        if let Some(exp) = self.as_any().downcast_ref::<ExpressionStatement>() {
-            exp.expression
+        match self {
+            Statement::Let(exp) => {
+                let val = exp
+                    .value
+                    .as_ref()
+                    .expect("error missing expression")
+                    .eval(env);
+
+                match val {
+                    Object::Error(_) => return val,
+                    _ => (),
+                }
+                let token = exp.name.token.clone();
+
+                match token {
+                    Token::Ident(name) => env.set(name.into(), val),
+                    _ => panic!("error should be an ident"),
+                }
+
+                // TODO: add env
+                Object::Null
+            }
+            Statement::Return(exp) => {
+                let result = exp
+                    .return_value
+                    .as_ref()
+                    .expect("error missing expression")
+                    .eval(env);
+
+                match result {
+                    Object::Error(_) => result,
+                    _ => Object::Return(Box::new(result)),
+                }
+            }
+            Statement::Expression(exp) => exp
+                .expression
                 .as_ref()
                 .expect("error missing expression")
-                .eval(env)
-        } else if let Some(exp) = self.as_any().downcast_ref::<LetStatement>() {
-            let val = exp
-                .value
-                .as_ref()
-                .expect("error missing expression")
-                .eval(env);
-
-            match val {
-                Object::Error(_) => return val,
-                _ => (),
-            }
-            let token = exp.name.token.clone();
-
-            match token {
-                Token::Ident(name) => env.set(name.into(), val),
-                _ => panic!("error should be an ident"),
-            }
-
-            // TODO: add env
-            Object::Null
-        } else if let Some(exp) = self.as_any().downcast_ref::<ReturnStatement>() {
-            let result = exp
-                .return_value
-                .as_ref()
-                .expect("error missing expression")
-                .eval(env);
-
-            match result {
-                Object::Error(_) => result,
-                _ => Object::Return(Box::new(result)),
-            }
-        } else {
-            Object::Null
+                .eval(env),
         }
     }
 }
 
-impl Eval for dyn Expression {
+impl Eval for Expression {
     fn eval(&self, env: &mut Env) -> Object {
-        if let Some(ident) = self.as_any().downcast_ref::<Identifier>() {
-            match &ident.token {
+        match self {
+            Expression::Identifier(ident) => match &ident.token {
                 Token::Ident(key) => match env.get(key.to_string()) {
                     Some(val) => val,
                     None => Object::Error(format!("identifier not found: {}", key)),
                 },
                 _ => panic!("error should be an ident"),
+            },
+            Expression::Int(integer) => {
+                let integer = match integer.token {
+                    Token::Int(value) => Object::Integer(value),
+                    _ => panic!("error should be a Int"),
+                };
+                integer
             }
-        } else if let Some(integer) = self.as_any().downcast_ref::<IntegerLiteral>() {
-            let integer = match integer.token {
-                Token::Int(value) => Object::Integer(value),
-                _ => panic!("error should be a Int"),
-            };
-            integer
-        } else if let Some(boolean) = self.as_any().downcast_ref::<ast::Boolean>() {
-            let integer = match boolean.token {
-                Token::True => Object::Boolean(true),
-                Token::False => Object::Boolean(false),
-                _ => panic!("error should be a Int"),
-            };
-            integer
-        } else if let Some(exp) = self.as_any().downcast_ref::<PrefixExpression>() {
-            let right = exp
-                .right
-                .as_ref()
-                .expect("error missing right expression")
-                .eval(env);
-
-            match right {
-                Object::Error(_) => return right,
-                _ => (),
-            };
-
-            match exp.operator {
-                Token::Bang => eval_bang(right),
-                Token::Minus => eval_minus_prefix(right),
-                _ => Object::Error(format!(
-                    "unknown operator: {}{}",
-                    exp.operator.string(),
-                    right.inspect()
-                )),
+            Expression::Boolean(boolean) => {
+                let boolean = match boolean.token {
+                    Token::True => Object::Boolean(true),
+                    Token::False => Object::Boolean(false),
+                    _ => panic!("error should be a Int"),
+                };
+                boolean
             }
-        } else if let Some(exp) = self.as_any().downcast_ref::<InfixExpression>() {
-            let left = exp
-                .left
-                .as_ref()
-                .expect("error missing left expression")
-                .eval(env);
+            Expression::Prefix(exp) => {
+                let right = exp
+                    .right
+                    .as_ref()
+                    .expect("error missing right expression")
+                    .eval(env);
 
-            match left {
-                Object::Error(_) => return left,
-                _ => (),
-            };
+                match right {
+                    Object::Error(_) => return right,
+                    _ => (),
+                };
 
-            let right = exp
-                .right
-                .as_ref()
-                .expect("error missing right expression")
-                .eval(env);
-
-            match right {
-                Object::Error(_) => return right,
-                _ => (),
-            };
-
-            match (&left, &right) {
-                (Object::Integer(left), Object::Integer(right)) => match exp.operator {
-                    Token::Plus => Object::Integer(left + right),
-                    Token::Minus => Object::Integer(left - right),
-                    Token::Asterisk => Object::Integer(left * right),
-                    Token::Slash => Object::Integer(left / right),
-                    Token::Lt => Object::Boolean(left < right),
-                    Token::Gt => Object::Boolean(left > right),
-                    Token::Eq => Object::Boolean(left == right),
-                    Token::NotEq => Object::Boolean(left != right),
+                match exp.operator {
+                    Token::Bang => eval_bang(right),
+                    Token::Minus => eval_minus_prefix(right),
                     _ => Object::Error(format!(
-                        "unknown operator: {} {} {}",
-                        left,
+                        "unknown operator: {}{}",
                         exp.operator.string(),
-                        right
+                        right.inspect()
                     )),
-                },
-
-                (Object::Boolean(left), Object::Boolean(right)) => match exp.operator {
-                    Token::Eq => Object::Boolean(left == right),
-                    Token::NotEq => Object::Boolean(left != right),
-                    _ => Object::Error(format!(
-                        "unknown operator: BOOLEAN {} BOOLEAN",
-                        exp.operator.string(),
-                    )),
-                },
-                _ => match discriminant(&left) != discriminant(&right) {
-                    true => Object::Error(format!(
-                        "type mismatch: {} {} {}",
-                        left,
-                        exp.operator.string(),
-                        right
-                    )),
-                    false => Object::Error(format!(
-                        "unknown operator: {} {} {}",
-                        left,
-                        exp.operator.string(),
-                        right
-                    )),
-                },
+                }
             }
-        } else if let Some(exp) = self.as_any().downcast_ref::<IfExpression>() {
-            let condition = exp.condition.eval(env);
-            match condition {
-                Object::Error(_) => return condition,
-                _ => (),
-            }
+            Expression::Infix(exp) => {
+                let left = exp
+                    .left
+                    .as_ref()
+                    .expect("error missing left expression")
+                    .eval(env);
 
-            let is_truthy = match condition {
-                Object::Boolean(boolean) => boolean,
-                Object::Null => false,
-                _ => true,
-            };
+                match left {
+                    Object::Error(_) => return left,
+                    _ => (),
+                };
 
-            if is_truthy {
-                eval_block_statements(&exp.consequence.statements, env)
-            } else if let Some(aternative) = &exp.alternative {
-                eval_block_statements(&aternative.statements, env)
-            } else {
-                Object::Null
-            }
-        } else if let Some(exp) = self.as_any().downcast_ref::<BlockStatement>() {
-            eval_block_statements(&exp.statements, env)
-        } else if let Some(func) = self.as_any().downcast_ref::<FunctionLiteral>() {
-            let function = Function {
-                body: func.body.clone(),
-                env: env.clone(),
-                parameters: func.parameters.clone(),
-            };
-            Object::Function(function)
-        } else if let Some(call) = self.as_any().downcast_ref::<CallExpression>() {
-            let function = call.function.eval(env);
-            match function {
-                Object::Error(_) => return function,
-                _ => (),
-            }
+                let right = exp
+                    .right
+                    .as_ref()
+                    .expect("error missing right expression")
+                    .eval(env);
 
-            let args = eval_expressions(&call.arguments, env);
+                match right {
+                    Object::Error(_) => return right,
+                    _ => (),
+                };
 
-            match args.first() {
-                Some(value) => match value {
-                    Object::Error(_) => value.clone(),
-                    _ => apply_function(&function, &args),
-                },
-                None => apply_function(&function, &args),
+                match (&left, &right) {
+                    (Object::Integer(left), Object::Integer(right)) => match exp.operator {
+                        Token::Plus => Object::Integer(left + right),
+                        Token::Minus => Object::Integer(left - right),
+                        Token::Asterisk => Object::Integer(left * right),
+                        Token::Slash => Object::Integer(left / right),
+                        Token::Lt => Object::Boolean(left < right),
+                        Token::Gt => Object::Boolean(left > right),
+                        Token::Eq => Object::Boolean(left == right),
+                        Token::NotEq => Object::Boolean(left != right),
+                        _ => Object::Error(format!(
+                            "unknown operator: {} {} {}",
+                            left,
+                            exp.operator.string(),
+                            right
+                        )),
+                    },
+
+                    (Object::Boolean(left), Object::Boolean(right)) => match exp.operator {
+                        Token::Eq => Object::Boolean(left == right),
+                        Token::NotEq => Object::Boolean(left != right),
+                        _ => Object::Error(format!(
+                            "unknown operator: BOOLEAN {} BOOLEAN",
+                            exp.operator.string(),
+                        )),
+                    },
+                    _ => match discriminant(&left) != discriminant(&right) {
+                        true => Object::Error(format!(
+                            "type mismatch: {} {} {}",
+                            left,
+                            exp.operator.string(),
+                            right
+                        )),
+                        false => Object::Error(format!(
+                            "unknown operator: {} {} {}",
+                            left,
+                            exp.operator.string(),
+                            right
+                        )),
+                    },
+                }
             }
-        } else {
-            Object::Null
+            Expression::If(exp) => {
+                let condition = exp.condition.eval(env);
+                match condition {
+                    Object::Error(_) => return condition,
+                    _ => (),
+                }
+
+                let is_truthy = match condition {
+                    Object::Boolean(boolean) => boolean,
+                    Object::Null => false,
+                    _ => true,
+                };
+
+                if is_truthy {
+                    eval_block_statements(&exp.consequence.statements, env)
+                } else if let Some(aternative) = &exp.alternative {
+                    eval_block_statements(&aternative.statements, env)
+                } else {
+                    Object::Null
+                }
+            }
+            Expression::BlockStatement(exp) => eval_block_statements(&exp.statements, env),
+            Expression::Function(func) => {
+                let function = Function {
+                    body: func.body.clone(),
+                    env: env.clone(),
+                    parameters: func.parameters.clone(),
+                };
+                Object::Function(function)
+            }
+            Expression::Call(call) => {
+                let function = call.function.eval(env);
+                match function {
+                    Object::Error(_) => return function,
+                    _ => (),
+                }
+
+                let args = eval_expressions(&call.arguments, env);
+
+                match args.first() {
+                    Some(value) => match value {
+                        Object::Error(_) => value.clone(),
+                        _ => apply_function(&function, &args),
+                    },
+                    None => apply_function(&function, &args),
+                }
+            }
         }
     }
 }
@@ -254,18 +255,16 @@ fn extended_function_env(function: &Function, args: &Vec<Object>) -> Env {
     let mut env = Env::new_enclosed(&function.env);
 
     for (i, param) in function.parameters.iter().enumerate() {
-        if let Some(param) = param.as_any().downcast_ref::<Identifier>() {
-            match (param.token.clone(), args.get(i)) {
-                (Token::Ident(key), Some(value)) => env.set(key, value.clone()),
-                _ => (),
-            }
+        match (param.token.clone(), args.get(i)) {
+            (Token::Ident(key), Some(value)) => env.set(key, value.clone()),
+            _ => (),
         }
     }
 
     env
 }
 
-fn eval_expressions(expressions: &Vec<Box<dyn Expression>>, env: &mut Env) -> Vec<Object> {
+fn eval_expressions(expressions: &Vec<Box<Expression>>, env: &mut Env) -> Vec<Object> {
     let mut result: Vec<Object> = vec![];
 
     for exp in expressions {
@@ -282,7 +281,7 @@ fn eval_expressions(expressions: &Vec<Box<dyn Expression>>, env: &mut Env) -> Ve
     result
 }
 
-fn eval_block_statements(statements: &Vec<Box<dyn Statement>>, env: &mut Env) -> Object {
+fn eval_block_statements(statements: &Vec<Statement>, env: &mut Env) -> Object {
     let mut result: Object = Object::Null;
 
     for stmt in statements {
