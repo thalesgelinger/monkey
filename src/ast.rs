@@ -1,89 +1,77 @@
 use crate::token::Token;
 use core::fmt::Debug;
-use std::{any::Any, fmt::Display};
 
-pub trait AnyNode: 'static {
-    fn as_any(&self) -> &dyn Any;
-}
-
-impl<T: 'static> AnyNode for T {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-}
-
-pub trait Node: AnyNode {
+pub trait Node {
     fn token_literal(&self) -> String;
     fn string(&self) -> String;
 }
 
-pub trait StatementClone {
-    fn clone_statement(&self) -> Box<dyn Statement>;
+pub enum Statement {
+    Let(LetStatement),
+    Return(ReturnStatement),
+    Expression(ExpressionStatement),
 }
 
-impl<T> StatementClone for T
-where
-    T: 'static + Statement + Clone,
-{
-    fn clone_statement(&self) -> Box<dyn Statement> {
-        Box::new(self.clone())
+impl Node for Statement {
+    fn token_literal(&self) -> String {
+        match self {
+            Statement::Let(let_stmt) => let_stmt.token_literal(),
+            Statement::Return(return_stmt) => return_stmt.token_literal(),
+            Statement::Expression(exp) => exp.token_literal(),
+        }
+    }
+
+    fn string(&self) -> String {
+        match self {
+            Statement::Let(let_stmt) => let_stmt.string(),
+            Statement::Return(return_stmt) => return_stmt.string(),
+            Statement::Expression(exp) => exp.string(),
+        }
     }
 }
 
-pub trait Statement: Node + StatementClone {
-    fn statement_node(&self) -> &Token;
+pub enum Expression {
+    Identifier(Identifier),
+    Prefix(PrefixExpression),
+    Infix(InfixExpression),
+    Boolean(Boolean),
+    If(IfExpression),
+    BlockStatement(BlockStatement),
+    Function(FunctionLiteral),
+    Call(CallExpression),
 }
 
-impl Clone for Box<dyn Statement> {
-    fn clone(&self) -> Self {
-        self.clone_statement()
+impl Node for Expression {
+    fn token_literal(&self) -> String {
+        match self {
+            Expression::Identifier(ident) => ident.token_literal(),
+            Expression::Prefix(prefix) => prefix.token_literal(),
+            Expression::Infix(infix) => infix.token_literal(),
+            Expression::Boolean(boolean) => boolean.token_literal(),
+            Expression::If(if_stmt) => if_stmt.token_literal(),
+            Expression::BlockStatement(block) => block.token_literal(),
+            Expression::Function(function) => function.token_literal(),
+            Expression::Call(call) => call.token_literal(),
+        }
     }
-}
 
-impl Debug for dyn Statement {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.token_literal())
-    }
-}
-
-pub trait ExpressionClone {
-    fn clone_expression(&self) -> Box<dyn Expression>;
-}
-
-impl<T> ExpressionClone for T
-where
-    T: 'static + Expression + Clone,
-{
-    fn clone_expression(&self) -> Box<dyn Expression> {
-        Box::new(self.clone())
-    }
-}
-
-pub trait Expression: Node + ExpressionClone {
-    fn expression_node(&self);
-}
-
-impl Clone for Box<dyn Expression> {
-    fn clone(&self) -> Self {
-        self.clone_expression()
-    }
-}
-
-impl Debug for dyn Expression {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.token_literal())
-    }
-}
-
-impl Display for dyn Expression {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self)
+    fn string(&self) -> String {
+        match self {
+            Expression::Identifier(ident) => ident.string(),
+            Expression::Prefix(prefix) => prefix.string(),
+            Expression::Infix(infix) => infix.string(),
+            Expression::Boolean(boolean) => boolean.string(),
+            Expression::If(if_stmt) => if_stmt.string(),
+            Expression::BlockStatement(block) => block.string(),
+            Expression::Function(function) => function.string(),
+            Expression::Call(call) => call.string(),
+        }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct Program {
-    pub statements: Vec<Box<dyn Statement>>,
+    pub statements: Vec<Statement>,
 }
 
 impl Program {
@@ -119,19 +107,19 @@ impl Node for Program {
 pub struct LetStatement {
     pub token: Token,
     pub name: Identifier,
-    pub value: Option<Box<dyn Expression>>,
+    pub value: Option<Expression>,
 }
 
 #[derive(Debug, Clone)]
 pub struct ReturnStatement {
     pub token: Token,
-    pub return_value: Option<Box<dyn Expression>>,
+    pub return_value: Option<Expression>,
 }
 
 #[derive(Debug, Clone)]
 pub struct ExpressionStatement {
     pub token: Token,
-    pub expression: Option<Box<dyn Expression>>,
+    pub expression: Option<Expression>,
 }
 
 impl Node for ReturnStatement {
@@ -197,24 +185,6 @@ impl Node for ExpressionStatement {
     }
 }
 
-impl Statement for LetStatement {
-    fn statement_node(&self) -> &Token {
-        &self.token
-    }
-}
-
-impl Statement for ReturnStatement {
-    fn statement_node(&self) -> &Token {
-        &self.token
-    }
-}
-
-impl Statement for ExpressionStatement {
-    fn statement_node(&self) -> &Token {
-        &self.token
-    }
-}
-
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Identifier {
     pub token: Token,
@@ -234,10 +204,6 @@ impl Node for Identifier {
             _ => panic!("This token should be an Ident"),
         }
     }
-}
-
-impl Expression for Identifier {
-    fn expression_node(&self) {}
 }
 
 #[derive(Debug, Clone)]
@@ -260,14 +226,10 @@ impl Node for IntegerLiteral {
     }
 }
 
-impl Expression for IntegerLiteral {
-    fn expression_node(&self) {}
-}
-
 #[derive(Debug, Clone)]
 pub struct PrefixExpression {
     pub token: Token,
-    pub right: Option<Box<dyn Expression>>,
+    pub right: Option<Expression>,
     pub operator: Token,
 }
 
@@ -284,16 +246,12 @@ impl Node for PrefixExpression {
     }
 }
 
-impl Expression for PrefixExpression {
-    fn expression_node(&self) {}
-}
-
 #[derive(Debug, Clone)]
 pub struct InfixExpression {
     pub token: Token,
-    pub right: Option<Box<dyn Expression>>,
+    pub right: Option<Expression>,
     pub operator: Token,
-    pub left: Option<Box<dyn Expression>>,
+    pub left: Option<Expression>,
 }
 
 impl Node for InfixExpression {
@@ -311,10 +269,6 @@ impl Node for InfixExpression {
             right.string(),
         )
     }
-}
-
-impl Expression for InfixExpression {
-    fn expression_node(&self) {}
 }
 
 #[derive(Debug, Clone)]
@@ -338,14 +292,10 @@ impl Node for Boolean {
     }
 }
 
-impl Expression for Boolean {
-    fn expression_node(&self) {}
-}
-
 #[derive(Debug, Clone)]
 pub struct IfExpression {
     pub token: Token,
-    pub condition: Box<dyn Expression>,
+    pub condition: Expression,
     pub consequence: BlockStatement,
     pub alternative: Option<BlockStatement>,
 }
@@ -372,14 +322,10 @@ impl Node for IfExpression {
     }
 }
 
-impl Expression for IfExpression {
-    fn expression_node(&self) {}
-}
-
 #[derive(Debug, Clone)]
 pub struct BlockStatement {
     pub token: Token,
-    pub statements: Vec<Box<dyn Statement>>,
+    pub statements: Vec<Statement>,
 }
 
 impl Node for BlockStatement {
@@ -396,10 +342,6 @@ impl Node for BlockStatement {
 
         out
     }
-}
-
-impl Expression for BlockStatement {
-    fn expression_node(&self) {}
 }
 
 #[derive(Debug, Clone)]
@@ -433,15 +375,11 @@ impl Node for FunctionLiteral {
     }
 }
 
-impl Expression for FunctionLiteral {
-    fn expression_node(&self) {}
-}
-
 #[derive(Debug, Clone)]
 pub struct CallExpression {
     pub token: Token,
-    pub function: Box<dyn Expression>,
-    pub arguments: Vec<Box<dyn Expression>>,
+    pub function: Expression,
+    pub arguments: Vec<Expression>,
 }
 
 impl Node for CallExpression {
@@ -465,10 +403,6 @@ impl Node for CallExpression {
 
         out
     }
-}
-
-impl Expression for CallExpression {
-    fn expression_node(&self) {}
 }
 
 #[cfg(test)]
