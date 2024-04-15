@@ -2,9 +2,9 @@ use core::panic;
 use std::mem::discriminant;
 
 use crate::ast::{
-    self, AnyNode, BlockStatement, Expression, ExpressionStatement, FunctionLiteral, Identifier,
-    IfExpression, InfixExpression, IntegerLiteral, LetStatement, PrefixExpression, Program,
-    ReturnStatement, Statement,
+    self, AnyNode, BlockStatement, CallExpression, Expression, ExpressionStatement,
+    FunctionLiteral, Identifier, IfExpression, InfixExpression, IntegerLiteral, LetStatement,
+    PrefixExpression, Program, ReturnStatement, Statement,
 };
 use crate::environment::Env;
 use crate::object::{Function, Object};
@@ -213,10 +213,73 @@ impl Eval for dyn Expression {
                 parameters: func.parameters.clone(),
             };
             Object::Function(function)
+        } else if let Some(call) = self.as_any().downcast_ref::<CallExpression>() {
+            let function = call.function.eval(env);
+            match function {
+                Object::Error(_) => return function,
+                _ => (),
+            }
+
+            let args = eval_expressions(&call.arguments, env);
+
+            match args.first() {
+                Some(value) => match value {
+                    Object::Error(_) => value.clone(),
+                    _ => apply_function(&function, &args),
+                },
+                None => apply_function(&function, &args),
+            }
         } else {
             Object::Null
         }
     }
+}
+
+fn apply_function(func: &Object, args: &Vec<Object>) -> Object {
+    let function = match func {
+        Object::Function(f) => f,
+        _ => return Object::Error(format!("not a function: {}", func)),
+    };
+
+    let mut extended_env = extended_function_env(function, args);
+    let evaluated = eval_block_statements(&function.body.statements, &mut extended_env);
+
+    match evaluated {
+        Object::Return(value) => *value,
+        _ => evaluated,
+    }
+}
+
+fn extended_function_env(function: &Function, args: &Vec<Object>) -> Env {
+    let mut env = Env::new_enclosed(&function.env);
+
+    for (i, param) in function.parameters.iter().enumerate() {
+        if let Some(param) = param.as_any().downcast_ref::<Identifier>() {
+            match (param.token.clone(), args.get(i)) {
+                (Token::Ident(key), Some(value)) => env.set(key, value.clone()),
+                _ => (),
+            }
+        }
+    }
+
+    env
+}
+
+fn eval_expressions(expressions: &Vec<Box<dyn Expression>>, env: &mut Env) -> Vec<Object> {
+    let mut result: Vec<Object> = vec![];
+
+    for exp in expressions {
+        let evaluated = exp.eval(env);
+
+        match evaluated {
+            Object::Error(_) => return vec![evaluated],
+            _ => (),
+        }
+
+        result.push(evaluated);
+    }
+
+    result
 }
 
 fn eval_block_statements(statements: &Vec<Box<dyn Statement>>, env: &mut Env) -> Object {
@@ -435,6 +498,22 @@ mod evaluator_test {
                 assert_eq!(function.body.string(), expected_body);
             }
             _ => panic!("Object is not a function"),
+        }
+    }
+
+    #[test]
+    fn test_function_application() {
+        let tests = vec![
+            ("let identity = fn(x) { x; }; identity(5);", 5),
+            ("let identity = fn(x) { return x; }; identity(5);", 5),
+            ("let double = fn(x) { x * 2; }; double(5);", 10),
+            ("let add = fn(x, y) { x + y; }; add(5, 5);", 10),
+            ("let add = fn(x, y) { x + y; }; add(5 + 5, add(5, 5));", 20),
+            ("fn(x) { x; }(5)", 5),
+        ];
+
+        for (input, expected) in tests {
+            assert_eq!(test_eval(input.into()).inspect(), expected.to_string())
         }
     }
 
