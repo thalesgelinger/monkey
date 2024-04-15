@@ -87,6 +87,7 @@ pub struct Program {
 }
 
 impl Program {
+    #[warn(dead_code)]
     pub fn string(&self) -> String {
         let mut out = String::new();
 
