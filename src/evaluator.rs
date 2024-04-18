@@ -207,7 +207,6 @@ impl Eval for Expression {
                     Object::Null
                 }
             }
-            Expression::BlockStatement(exp) => eval_block_statements(&exp.statements, env),
             Expression::Function(func) => {
                 let function = Function {
                     body: func.body.clone(),

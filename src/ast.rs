@@ -39,7 +39,6 @@ pub enum Expression {
     Infix(InfixExpression),
     Boolean(Boolean),
     If(IfExpression),
-    BlockStatement(BlockStatement),
     Function(FunctionLiteral),
     Call(CallExpression),
 }
@@ -53,7 +52,6 @@ impl Node for Expression {
             Expression::Infix(infix) => infix.token_literal(),
             Expression::Boolean(boolean) => boolean.token_literal(),
             Expression::If(if_stmt) => if_stmt.token_literal(),
-            Expression::BlockStatement(block) => block.token_literal(),
             Expression::Function(function) => function.token_literal(),
             Expression::Call(call) => call.token_literal(),
         }
@@ -67,7 +65,6 @@ impl Node for Expression {
             Expression::Infix(infix) => infix.string(),
             Expression::Boolean(boolean) => boolean.string(),
             Expression::If(if_stmt) => if_stmt.string(),
-            Expression::BlockStatement(block) => block.string(),
             Expression::Function(function) => function.string(),
             Expression::Call(call) => call.string(),
         }
