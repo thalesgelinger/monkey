@@ -16,7 +16,13 @@ pub enum Object {
     Error(String),
     Return(Box<Object>),
     Function(Function),
+    Bultin(BultinFunction),
     Null,
+}
+
+#[derive(Debug, Clone)]
+pub enum BultinFunction {
+    Len,
 }
 
 #[derive(Debug, Clone)]
@@ -52,6 +58,7 @@ impl Object {
                 out
             }
             Object::String(string) => string.to_string(),
+            Object::Bultin(_) => "builtin function".to_string(),
         }
     }
 }
@@ -66,6 +73,7 @@ impl Display for Object {
             Object::Null => write!(f, "NULL"),
             Object::Function(_) => write!(f, "FUNCTION"),
             Object::String(_) => write!(f, "STRING"),
+            Object::Bultin(_) => write!(f, "BULTIN"),
         }
     }
 }

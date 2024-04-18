@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use crate::ast::{Expression, Program, Statement};
 use crate::environment::Env;
-use crate::object::{Function, Object};
+use crate::object::{BultinFunction, Function, Object};
 use crate::token::Token;
 
 pub trait Eval {
@@ -80,7 +80,10 @@ impl Eval for Expression {
             Expression::Identifier(ident) => match &ident.token {
                 Token::Ident(key) => match env.get(key.to_string()) {
                     Some(val) => val,
-                    None => Object::Error(format!("identifier not found: {}", key)),
+                    None => match key.as_str() {
+                        "len" => Object::Bultin(BultinFunction::Len),
+                        _ => Object::Error(format!("identifier not found: {}", key)),
+                    },
                 },
                 _ => panic!("error should be an ident"),
             },
@@ -248,12 +251,37 @@ impl Eval for Expression {
 }
 
 fn apply_function(function: &Object, args: &Vec<Object>) -> Object {
-    let function = match function {
-        Object::Function(f) => f,
+    let evaluated = match function {
+        Object::Function(f) => {
+            let extended_env = extended_function_env(f, args);
+            let evaluated = eval_block_statements(&f.body.statements, &extended_env);
+            evaluated
+        }
+        Object::Bultin(bultin_fn) => match bultin_fn {
+            BultinFunction::Len => {
+                if args.len() != 1 {
+                    return Object::Error(format!(
+                        "wrong number of arguments. got={}, want=1",
+                        args.len()
+                    ));
+                }
+
+                let arg = args.first().unwrap();
+                match arg {
+                    Object::String(value) => {
+                        Object::Integer(value.len().try_into().expect("failed parsing to to int"))
+                    }
+                    _ => {
+                        return Object::Error(format!(
+                            "argument to 'len' not supported, got {}",
+                            arg
+                        ))
+                    }
+                }
+            }
+        },
         _ => panic!("This is not a function"),
     };
-    let extended_env = extended_function_env(function, args);
-    let evaluated = eval_block_statements(&function.body.statements, &extended_env);
 
     match evaluated {
         Object::Return(value) => *value,
@@ -553,6 +581,28 @@ mod evaluator_test {
         let input = "\"Hello\" + \" \" + \"World!\"";
         let evaluated = test_eval(input.into());
         assert_eq!(evaluated.inspect(), "Hello World!".to_string())
+    }
+
+    #[test]
+    fn test_builtin_functions() {
+        let tests = vec![
+            ("len(\"\")", "0"),
+            ("len(\"four\")", "4"),
+            ("len(\"hello world\")", "11"),
+            (
+                "len(1)",
+                "ERROR: argument to 'len' not supported, got INTEGER",
+            ),
+            (
+                "len(\"one\", \"two\")",
+                "ERROR: wrong number of arguments. got=2, want=1",
+            ),
+        ];
+        for (input, expected) in tests {
+            let evaluated = test_eval(input.into());
+
+            assert_eq!(evaluated.inspect(), expected.to_string());
+        }
     }
 
     fn test_eval(input: String) -> Object {
