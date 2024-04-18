@@ -232,6 +232,7 @@ impl Eval for Expression {
                     None => apply_function(&function, &args),
                 }
             }
+            Expression::String(_) => todo!(),
         }
     }
 }

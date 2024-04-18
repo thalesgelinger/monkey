@@ -35,6 +35,7 @@ impl Node for Statement {
 pub enum Expression {
     Identifier(Identifier),
     Int(IntegerLiteral),
+    String(StringLiteral),
     Prefix(PrefixExpression),
     Infix(InfixExpression),
     Boolean(Boolean),
@@ -54,6 +55,7 @@ impl Node for Expression {
             Expression::If(if_stmt) => if_stmt.token_literal(),
             Expression::Function(function) => function.token_literal(),
             Expression::Call(call) => call.token_literal(),
+            Expression::String(string) => string.token_literal(),
         }
     }
 
@@ -67,6 +69,7 @@ impl Node for Expression {
             Expression::If(if_stmt) => if_stmt.string(),
             Expression::Function(function) => function.string(),
             Expression::Call(call) => call.string(),
+            Expression::String(string) => string.string(),
         }
     }
 }
@@ -225,6 +228,24 @@ impl Node for IntegerLiteral {
         };
 
         int_string
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct StringLiteral {
+    pub token: Token,
+}
+
+impl Node for StringLiteral {
+    fn token_literal(&self) -> String {
+        format!("{:?}", self.token)
+    }
+
+    fn string(&self) -> String {
+        match &self.token {
+            Token::String(value) => value.to_string(),
+            _ => panic!("Fail stringifying expression"),
+        }
     }
 }
 

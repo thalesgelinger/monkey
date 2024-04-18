@@ -1,7 +1,7 @@
 use crate::ast::{
     BlockStatement, Boolean, CallExpression, Expression, ExpressionStatement, FunctionLiteral,
     Identifier, IfExpression, InfixExpression, IntegerLiteral, LetStatement, PrefixExpression,
-    Program, ReturnStatement, Statement,
+    Program, ReturnStatement, Statement, StringLiteral,
 };
 use crate::lexer::Lexer;
 use crate::token::Token;
@@ -199,6 +199,12 @@ impl Parser {
             Token::Lparen => self.parse_grouped_expression(),
             Token::If => self.parse_if_expression(),
             Token::Function => self.parse_function_literal(),
+            Token::String(_) => {
+                let string = StringLiteral {
+                    token: token.clone(),
+                };
+                Some(Expression::String(string))
+            }
             _ => None,
         }
     }
@@ -1102,6 +1108,32 @@ mod parser_tests {
             &third.right.expect("Missing right expression"),
             &Token::Int(5),
         );
+    }
+
+    #[test]
+    fn test_string_literal_expression() {
+        let input = "\"hello world\";";
+
+        let lexer = Lexer::new(input.into());
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program();
+        check_parse_errors(parser.errors);
+
+        let stmt = match program
+            .statements
+            .first()
+            .expect("There's no statement here")
+        {
+            Statement::Expression(statement) => Box::new(statement),
+            _ => panic!("Error creating ExpressionStatement"),
+        };
+
+        let literal = match stmt.expression.as_ref().expect("Missin call expression") {
+            Expression::String(e) => e,
+            _ => panic!("There's no expression"),
+        };
+
+        assert_eq!(literal.token, Token::String("hello world".to_string()))
     }
 
     fn check_parse_errors(errors: Vec<String>) {
