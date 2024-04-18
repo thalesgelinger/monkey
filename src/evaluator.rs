@@ -232,7 +232,10 @@ impl Eval for Expression {
                     None => apply_function(&function, &args),
                 }
             }
-            Expression::String(_) => todo!(),
+            Expression::String(string) => match &string.token {
+                Token::String(value) => Object::String(value.into()),
+                _ => panic!("error should be an String"),
+            },
         }
     }
 }
@@ -528,6 +531,13 @@ mod evaluator_test {
         let input =
             "let counter = fn(x) { if (x > 100) { return true; } else { let foobar = 9999; counter(x + 1); } }; counter(0);";
         assert_eq!(test_eval(input.into()).inspect(), true.to_string())
+    }
+
+    #[test]
+    fn test_string_literal() {
+        let input = "\"Hello World!\"";
+        let evaluated = test_eval(input.into());
+        assert_eq!(evaluated.inspect(), "Hello World!".to_string())
     }
 
     fn test_eval(input: String) -> Object {

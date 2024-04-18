@@ -11,6 +11,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub enum Object {
     Integer(isize),
+    String(String),
     Boolean(bool),
     Error(String),
     Return(Box<Object>),
@@ -50,6 +51,7 @@ impl Object {
 
                 out
             }
+            Object::String(string) => string.to_string(),
         }
     }
 }
@@ -63,6 +65,7 @@ impl Display for Object {
             Object::Return(_) => write!(f, "RETURN"),
             Object::Null => write!(f, "NULL"),
             Object::Function(_) => write!(f, "FUNCTION"),
+            Object::String(_) => write!(f, "STRING"),
         }
     }
 }
