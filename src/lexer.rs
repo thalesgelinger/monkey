@@ -61,6 +61,8 @@ impl Lexer {
             b',' => Token::Comma,
             b'{' => Token::Lbrace,
             b'}' => Token::Rbrace,
+            b'[' => Token::Lbracket,
+            b']' => Token::Rbracket,
             b'a'..=b'z' | b'A'..=b'Z' | b'_' => {
                 return match self.read_identifier().as_str() {
                     "fn" => Token::Function,
@@ -193,6 +195,7 @@ mod lexer_tests {
         10 != 9;
         "foobar"
         "foo bar"
+        [1, 2];
         "#;
 
         let tests = vec![
@@ -271,6 +274,12 @@ mod lexer_tests {
             Token::Semicolon,
             Token::String("foobar".to_string()),
             Token::String("foo bar".to_string()),
+            Token::Lbracket,
+            Token::Int(1),
+            Token::Comma,
+            Token::Int(2),
+            Token::Rbracket,
+            Token::Semicolon,
             Token::Eof,
         ];
 
