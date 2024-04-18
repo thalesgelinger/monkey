@@ -1,6 +1,7 @@
 use core::panic;
 use std::mem::discriminant;
 use std::rc::Rc;
+use std::usize;
 
 use crate::ast::{Expression, Program, Statement};
 use crate::environment::Env;
@@ -255,7 +256,31 @@ impl Eval for Expression {
 
                 Object::Array(Array { elements })
             }
-            _ => panic!("Expression not supported"),
+            Expression::Index(index_exp) => {
+                let left = index_exp.left.eval(env);
+                if is_error(&left) {
+                    return left;
+                }
+
+                let index = index_exp.index.eval(env);
+                if is_error(&index) {
+                    return index;
+                }
+
+                match (&left, &index) {
+                    (Object::Array(arr), Object::Integer(index)) => {
+                        let index = *index as usize;
+                        match arr.elements.get(index) {
+                            Some(val) => val.clone(),
+                            None => Object::Null,
+                        }
+                    }
+                    _ => Object::Error(format!(
+                        "index operator not supported: {}",
+                        left.to_string()
+                    )),
+                }
+            }
         }
     }
 }
@@ -628,6 +653,38 @@ mod evaluator_test {
         let evaluated = test_eval(input.into());
 
         assert_eq!(evaluated.inspect(), "[1, 4, 6]");
+    }
+
+    #[test]
+    fn test_array_index_expressions() {
+        let tests = vec![
+            ("[1, 2, 3][0]", Some(1)),
+            ("[1, 2, 3][1]", Some(2)),
+            ("[1, 2, 3][2]", Some(3)),
+            ("let i = 0; [1][i];", Some(1)),
+            ("[1, 2, 3][1 + 1];", Some(3)),
+            ("let myArray = [1, 2, 3]; myArray[2];", Some(3)),
+            (
+                "let myArray = [1, 2, 3]; myArray[0] + myArray[1] + myArray[2];",
+                Some(6),
+            ),
+            (
+                "let myArray = [1, 2, 3]; let i = myArray[0]; myArray[i]",
+                Some(2),
+            ),
+            ("[1, 2, 3][3]", None),
+            ("[1, 2, 3][-1]", None),
+        ];
+
+        for (input, expected) in tests {
+            let evaluated = test_eval(input.into());
+            println!("What is this: {:?}", evaluated);
+            match evaluated {
+                Object::Integer(value) => assert_eq!(value, expected.unwrap()),
+                Object::Null => assert_eq!(Object::Null.to_string(), Object::Null.to_string()),
+                _ => panic!("there's no test if it's not integer yet'"),
+            }
+        }
     }
 
     fn test_eval(input: String) -> Object {
