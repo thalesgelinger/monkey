@@ -1,17 +1,18 @@
 use core::panic;
 use std::mem::discriminant;
+use std::rc::Rc;
 
-use crate::ast::{Expression, Node, Program, Statement};
+use crate::ast::{Expression, Program, Statement};
 use crate::environment::Env;
 use crate::object::{Function, Object};
 use crate::token::Token;
 
 pub trait Eval {
-    fn eval(&self, env: &mut Env) -> Object;
+    fn eval(&self, env: &Rc<Env>) -> Object;
 }
 
 impl Eval for Program {
-    fn eval(&self, env: &mut Env) -> Object {
+    fn eval(&self, env: &Rc<Env>) -> Object {
         let mut result: Object = Object::Null;
 
         for stmt in &self.statements {
@@ -29,7 +30,7 @@ impl Eval for Program {
 }
 
 impl Eval for Statement {
-    fn eval(&self, env: &mut Env) -> Object {
+    fn eval(&self, env: &Rc<Env>) -> Object {
         match self {
             Statement::Let(exp) => {
                 let val = exp
@@ -74,7 +75,7 @@ impl Eval for Statement {
 }
 
 impl Eval for Expression {
-    fn eval(&self, env: &mut Env) -> Object {
+    fn eval(&self, env: &Rc<Env>) -> Object {
         match self {
             Expression::Identifier(ident) => match &ident.token {
                 Token::Ident(key) => match env.get(key.to_string()) {
@@ -210,20 +211,17 @@ impl Eval for Expression {
             Expression::Function(func) => {
                 let function = Function {
                     body: func.body.clone(),
-                    env: env.clone(),
+                    env: Rc::clone(env),
                     parameters: func.parameters.clone(),
                 };
                 Object::Function(function)
             }
             Expression::Call(call) => {
                 let function = call.function.eval(env);
-                let mut function = match function {
+                match function {
                     Object::Error(_) => return function,
-                    Object::Function(f) => f,
-                    _ => panic!("This is not a function"),
+                    _ => (),
                 };
-
-                function.env = env.clone();
 
                 let args = eval_expressions(&call.arguments, env);
 
@@ -239,9 +237,13 @@ impl Eval for Expression {
     }
 }
 
-fn apply_function(function: &Function, args: &Vec<Object>) -> Object {
-    let mut extended_env = extended_function_env(function, args);
-    let evaluated = eval_block_statements(&function.body.statements, &mut extended_env);
+fn apply_function(function: &Object, args: &Vec<Object>) -> Object {
+    let function = match function {
+        Object::Function(f) => f,
+        _ => panic!("This is not a function"),
+    };
+    let extended_env = extended_function_env(function, args);
+    let evaluated = eval_block_statements(&function.body.statements, &extended_env);
 
     match evaluated {
         Object::Return(value) => *value,
@@ -249,8 +251,8 @@ fn apply_function(function: &Function, args: &Vec<Object>) -> Object {
     }
 }
 
-fn extended_function_env(function: &Function, args: &Vec<Object>) -> Env {
-    let mut env = Env::new_enclosed(&function.env);
+fn extended_function_env(function: &Function, args: &Vec<Object>) -> Rc<Env> {
+    let env = Env::new_enclosed(&function.env);
 
     for (i, param) in function.parameters.iter().enumerate() {
         match (param.token.clone(), args.get(i)) {
@@ -262,7 +264,7 @@ fn extended_function_env(function: &Function, args: &Vec<Object>) -> Env {
     env
 }
 
-fn eval_expressions(expressions: &Vec<Box<Expression>>, env: &mut Env) -> Vec<Object> {
+fn eval_expressions(expressions: &Vec<Box<Expression>>, env: &Rc<Env>) -> Vec<Object> {
     let mut result: Vec<Object> = vec![];
 
     for exp in expressions {
@@ -279,7 +281,7 @@ fn eval_expressions(expressions: &Vec<Box<Expression>>, env: &mut Env) -> Vec<Ob
     result
 }
 
-fn eval_block_statements(statements: &Vec<Statement>, env: &mut Env) -> Object {
+fn eval_block_statements(statements: &Vec<Statement>, env: &Rc<Env>) -> Object {
     let mut result: Object = Object::Null;
 
     for stmt in statements {
@@ -519,6 +521,13 @@ mod evaluator_test {
         let input =
             "let newAdder = fn(x) { fn(y) { x + y }; }; let addTwo = newAdder(2); addTwo(2);";
         assert_eq!(test_eval(input.into()).inspect(), 4.to_string())
+    }
+
+    #[test]
+    fn test_recursive() {
+        let input =
+            "let counter = fn(x) { if (x > 100) { return true; } else { let foobar = 9999; counter(x + 1); } }; counter(0);";
+        assert_eq!(test_eval(input.into()).inspect(), true.to_string())
     }
 
     fn test_eval(input: String) -> Object {

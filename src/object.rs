@@ -1,4 +1,7 @@
-use std::fmt::{Debug, Display};
+use std::{
+    fmt::{Debug, Display},
+    rc::Rc,
+};
 
 use crate::{
     ast::{BlockStatement, Identifier, Node},
@@ -19,7 +22,7 @@ pub enum Object {
 pub struct Function {
     pub parameters: Vec<Identifier>,
     pub body: BlockStatement,
-    pub env: Env,
+    pub env: Rc<Env>,
 }
 
 impl Object {
