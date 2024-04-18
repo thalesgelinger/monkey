@@ -170,6 +170,13 @@ impl Eval for Expression {
                             exp.operator.string(),
                         )),
                     },
+                    (Object::String(left), Object::String(right)) => match exp.operator {
+                        Token::Plus => Object::String(format!("{}{}", left, right)),
+                        _ => Object::Error(format!(
+                            "unknown operator: STRING {} STRING",
+                            exp.operator.string(),
+                        )),
+                    },
                     _ => match discriminant(&left) != discriminant(&right) {
                         true => Object::Error(format!(
                             "type mismatch: {} {} {}",
@@ -452,6 +459,7 @@ mod evaluator_test {
                 "unknown operator: BOOLEAN + BOOLEAN",
             ),
             ("foobar", "identifier not found: foobar"),
+            ("\"Hello\" - \"World\"", "unknown operator: STRING - STRING"),
         ];
 
         for (input, expected) in tests {
@@ -536,6 +544,13 @@ mod evaluator_test {
     #[test]
     fn test_string_literal() {
         let input = "\"Hello World!\"";
+        let evaluated = test_eval(input.into());
+        assert_eq!(evaluated.inspect(), "Hello World!".to_string())
+    }
+
+    #[test]
+    fn test_string_concatenation() {
+        let input = "\"Hello\" + \" \" + \"World!\"";
         let evaluated = test_eval(input.into());
         assert_eq!(evaluated.inspect(), "Hello World!".to_string())
     }
