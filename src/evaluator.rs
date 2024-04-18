@@ -246,7 +246,7 @@ impl Eval for Expression {
                 Token::String(value) => Object::String(value.into()),
                 _ => panic!("error should be an String"),
             },
-            Expression::Array(_) => todo!(),
+            _ => panic!("Expression not supported"),
         }
     }
 }

@@ -1,7 +1,7 @@
 use crate::ast::{
     ArrayLiteral, BlockStatement, Boolean, CallExpression, Expression, ExpressionStatement,
-    FunctionLiteral, Identifier, IfExpression, InfixExpression, IntegerLiteral, LetStatement,
-    PrefixExpression, Program, ReturnStatement, Statement, StringLiteral,
+    FunctionLiteral, Identifier, IfExpression, IndexExpression, InfixExpression, IntegerLiteral,
+    LetStatement, PrefixExpression, Program, ReturnStatement, Statement, StringLiteral,
 };
 use crate::lexer::Lexer;
 use crate::token::Token;
@@ -15,6 +15,7 @@ enum Precedence {
     Product,
     Prefix,
     Call,
+    Index,
 }
 
 pub struct Parser {
@@ -253,6 +254,11 @@ impl Parser {
                 self.next_token();
                 self.parse_call_expression(left)
             }
+            Token::Lbracket => {
+                self.next_token();
+                self.parse_index_expression(left)
+            }
+
             _ => left,
         }
     }
@@ -287,6 +293,7 @@ impl Parser {
             Token::Slash => Precedence::Product,
             Token::Asterisk => Precedence::Product,
             Token::Lparen => Precedence::Call,
+            Token::Lbracket => Precedence::Index,
             _ => Precedence::Lowest,
         }
     }
@@ -569,6 +576,27 @@ impl Parser {
         }
 
         Some(expressions)
+    }
+
+    fn parse_index_expression(&mut self, left: Option<Box<Expression>>) -> Option<Box<Expression>> {
+        let token = self.current_token.clone();
+
+        self.next_token();
+
+        let index = self
+            .parse_expression(Precedence::Lowest)
+            .expect("Invalid index expression");
+
+        if !self.expect_peek(Token::Rbracket) {
+            return None;
+        }
+
+        let expression = IndexExpression {
+            token,
+            index,
+            left: left.expect("inavalid left index expression"),
+        };
+        Some(Box::new(Expression::Index(expression)))
     }
 }
 
@@ -904,6 +932,14 @@ mod parser_tests {
                 "add(a + b + c * d / f + g)",
                 "add((((a + b) + ((c * d) / f)) + g))",
             ),
+            (
+                "a * [1, 2, 3, 4][b * c] * d",
+                "((a * ([1, 2, 3, 4][(b * c)])) * d)",
+            ),
+            (
+                "add(a * b[2], b[1], 2 * [1, 2][1])",
+                "add((a * (b[2])), (b[1]), (2 * ([1, 2][1])))",
+            ),
         ];
 
         for (input, expected) in tests {
@@ -1214,6 +1250,33 @@ mod parser_tests {
         assert_eq!(arr.elements.get(0).unwrap().string(), "1");
         assert_eq!(arr.elements.get(1).unwrap().string(), "(2 * 2)");
         assert_eq!(arr.elements.get(2).unwrap().string(), "(3 + 3)");
+    }
+
+    #[test]
+    fn test_parsing_index_expressions() {
+        let input = "myArray[1 + 1]";
+
+        let lexer = Lexer::new(input.into());
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program();
+        check_parse_errors(parser.errors);
+
+        let stmt = match program
+            .statements
+            .first()
+            .expect("There's no statement here")
+        {
+            Statement::Expression(statement) => Box::new(statement),
+            _ => panic!("Error creating ExpressionStatement"),
+        };
+
+        let index_exp = match stmt.expression.as_ref().expect("Missin call expression") {
+            Expression::Index(e) => e,
+            _ => panic!("There's no expression"),
+        };
+
+        assert_eq!(index_exp.left.string(), "myArray");
+        assert_eq!(index_exp.index.string(), "(1 + 1)");
     }
 
     fn check_parse_errors(errors: Vec<String>) {

@@ -37,6 +37,7 @@ pub enum Expression {
     Int(IntegerLiteral),
     String(StringLiteral),
     Array(ArrayLiteral),
+    Index(IndexExpression),
     Prefix(PrefixExpression),
     Infix(InfixExpression),
     Boolean(Boolean),
@@ -58,6 +59,7 @@ impl Node for Expression {
             Expression::Call(call) => call.token_literal(),
             Expression::String(string) => string.token_literal(),
             Expression::Array(array) => array.token_literal(),
+            Expression::Index(index_exp) => index_exp.token_literal(),
         }
     }
 
@@ -73,6 +75,7 @@ impl Node for Expression {
             Expression::Call(call) => call.string(),
             Expression::String(string) => string.string(),
             Expression::Array(array) => array.string(),
+            Expression::Index(index_exp) => index_exp.string(),
         }
     }
 }
@@ -274,6 +277,31 @@ impl Node for ArrayLiteral {
         out.push_str("[");
         out.push_str(&elements.join(", "));
         out.push_str("]");
+
+        out
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct IndexExpression {
+    pub token: Token,
+    pub left: Box<Expression>,
+    pub index: Box<Expression>,
+}
+
+impl Node for IndexExpression {
+    fn token_literal(&self) -> String {
+        format!("{:?}", self.token)
+    }
+
+    fn string(&self) -> String {
+        let mut out = String::from("");
+
+        out.push_str("(");
+        out.push_str(&self.left.string());
+        out.push_str("[");
+        out.push_str(&self.index.string());
+        out.push_str("])");
 
         out
     }
