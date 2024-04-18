@@ -74,6 +74,7 @@ impl Lexer {
                 }
             }
             b'0'..=b'9' => return Token::Int(self.read_number()),
+            b'"' => self.read_string(),
             0 => Token::Eof,
             _ => unreachable!("Character not supported!"),
         };
@@ -120,6 +121,23 @@ impl Lexer {
             self.input[self.read_position]
         }
     }
+
+    fn read_string(&mut self) -> Token {
+        let position = self.position + 1;
+
+        loop {
+            self.read_char();
+            if self.ch == b'"' || self.ch == 0 {
+                break;
+            }
+        }
+
+        let value = match String::from_utf8(self.input[position..self.position].to_vec()) {
+            Ok(string) => string,
+            Err(_) => panic!("Error getting string"),
+        };
+        Token::String(value)
+    }
 }
 
 #[cfg(test)]
@@ -153,7 +171,7 @@ mod lexer_tests {
 
     #[test]
     fn test_next_token() {
-        let input = r"
+        let input = r#"
         let five = 5;
         let ten = 10;
 
@@ -173,7 +191,9 @@ mod lexer_tests {
 
         10 == 10;
         10 != 9;
-        ";
+        "foobar"
+        "foo bar"
+        "#;
 
         let tests = vec![
             Token::Let,
@@ -249,6 +269,8 @@ mod lexer_tests {
             Token::NotEq,
             Token::Int(9),
             Token::Semicolon,
+            Token::String("foobar".to_string()),
+            Token::String("foo bar".to_string()),
             Token::Eof,
         ];
 

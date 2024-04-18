@@ -39,6 +39,9 @@ pub enum Token {
     If,
     Else,
     Return,
+
+    // Data
+    String(String),
 }
 
 impl Token {
