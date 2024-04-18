@@ -11,8 +11,9 @@ use crate::{
 #[derive(Debug, Clone)]
 pub enum Object {
     Integer(isize),
-    String(String),
     Boolean(bool),
+    String(String),
+    Array(Array),
     Error(String),
     Return(Box<Object>),
     Function(Function),
@@ -30,6 +31,11 @@ pub struct Function {
     pub parameters: Vec<Identifier>,
     pub body: BlockStatement,
     pub env: Rc<Env>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Array {
+    pub elements: Vec<Object>,
 }
 
 impl Object {
@@ -59,6 +65,20 @@ impl Object {
             }
             Object::String(string) => string.to_string(),
             Object::Bultin(_) => "builtin function".to_string(),
+            Object::Array(arr) => {
+                let mut out = String::from("");
+
+                let mut elements: Vec<String> = vec![];
+                for element in &arr.elements {
+                    elements.push(element.inspect());
+                }
+
+                out.push_str("[");
+                out.push_str(&elements.join(", "));
+                out.push_str("]");
+
+                out
+            }
         }
     }
 }
@@ -74,6 +94,7 @@ impl Display for Object {
             Object::Function(_) => write!(f, "FUNCTION"),
             Object::String(_) => write!(f, "STRING"),
             Object::Bultin(_) => write!(f, "BULTIN"),
+            Object::Array(_) => write!(f, "ARRAY"),
         }
     }
 }

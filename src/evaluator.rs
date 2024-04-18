@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use crate::ast::{Expression, Program, Statement};
 use crate::environment::Env;
-use crate::object::{BultinFunction, Function, Object};
+use crate::object::{Array, BultinFunction, Function, Object};
 use crate::token::Token;
 
 pub trait Eval {
@@ -246,8 +246,24 @@ impl Eval for Expression {
                 Token::String(value) => Object::String(value.into()),
                 _ => panic!("error should be an String"),
             },
+            Expression::Array(arr) => {
+                let elements = eval_expressions(&arr.elements, env);
+
+                if elements.len() == 1 && is_error(&elements.first().unwrap()) {
+                    return elements.first().unwrap().clone();
+                }
+
+                Object::Array(Array { elements })
+            }
             _ => panic!("Expression not supported"),
         }
+    }
+}
+
+fn is_error(obj: &Object) -> bool {
+    match obj {
+        Object::Error(_) => true,
+        _ => false,
     }
 }
 
@@ -604,6 +620,14 @@ mod evaluator_test {
 
             assert_eq!(evaluated.inspect(), expected.to_string());
         }
+    }
+
+    #[test]
+    fn test_array_literals() {
+        let input = "[1, 2 * 2, 3 + 3]";
+        let evaluated = test_eval(input.into());
+
+        assert_eq!(evaluated.inspect(), "[1, 4, 6]");
     }
 
     fn test_eval(input: String) -> Object {
