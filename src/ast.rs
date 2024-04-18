@@ -36,6 +36,7 @@ pub enum Expression {
     Identifier(Identifier),
     Int(IntegerLiteral),
     String(StringLiteral),
+    Array(ArrayLiteral),
     Prefix(PrefixExpression),
     Infix(InfixExpression),
     Boolean(Boolean),
@@ -56,6 +57,7 @@ impl Node for Expression {
             Expression::Function(function) => function.token_literal(),
             Expression::Call(call) => call.token_literal(),
             Expression::String(string) => string.token_literal(),
+            Expression::Array(array) => array.token_literal(),
         }
     }
 
@@ -70,6 +72,7 @@ impl Node for Expression {
             Expression::Function(function) => function.string(),
             Expression::Call(call) => call.string(),
             Expression::String(string) => string.string(),
+            Expression::Array(array) => array.string(),
         }
     }
 }
@@ -250,6 +253,33 @@ impl Node for StringLiteral {
 }
 
 #[derive(Debug, Clone)]
+pub struct ArrayLiteral {
+    pub token: Token,
+    pub elements: Vec<Expression>,
+}
+
+impl Node for ArrayLiteral {
+    fn token_literal(&self) -> String {
+        format!("{:?}", self.token)
+    }
+
+    fn string(&self) -> String {
+        let mut out = String::from("");
+
+        let mut elements: Vec<String> = vec![];
+        for element in &self.elements {
+            elements.push(element.string());
+        }
+
+        out.push_str("[");
+        out.push_str(&elements.join(", "));
+        out.push_str("]");
+
+        out
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct PrefixExpression {
     pub token: Token,
     pub right: Option<Box<Expression>>,
@@ -402,7 +432,7 @@ impl Node for FunctionLiteral {
 pub struct CallExpression {
     pub token: Token,
     pub function: Box<Expression>,
-    pub arguments: Vec<Box<Expression>>,
+    pub arguments: Vec<Expression>,
 }
 
 impl Node for CallExpression {

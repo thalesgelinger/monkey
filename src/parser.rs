@@ -1,7 +1,7 @@
 use crate::ast::{
-    BlockStatement, Boolean, CallExpression, Expression, ExpressionStatement, FunctionLiteral,
-    Identifier, IfExpression, InfixExpression, IntegerLiteral, LetStatement, PrefixExpression,
-    Program, ReturnStatement, Statement, StringLiteral,
+    ArrayLiteral, BlockStatement, Boolean, CallExpression, Expression, ExpressionStatement,
+    FunctionLiteral, Identifier, IfExpression, InfixExpression, IntegerLiteral, LetStatement,
+    PrefixExpression, Program, ReturnStatement, Statement, StringLiteral,
 };
 use crate::lexer::Lexer;
 use crate::token::Token;
@@ -205,6 +205,7 @@ impl Parser {
                 };
                 Some(Expression::String(string))
             }
+            Token::Lbracket => self.parse_array_literal(),
             _ => None,
         }
     }
@@ -479,14 +480,17 @@ impl Parser {
         function: Option<Box<Expression>>,
     ) -> Option<Box<Expression>> {
         let token = self.current_token.clone();
+
         let arguments = self
-            .parse_call_arguments()
+            .parse_expression_list(Token::Rparen)
             .expect("Erro on getting arguments");
+
         let call = CallExpression {
             token: token.clone(),
             function: function.expect("Missing function"),
             arguments,
         };
+
         Some(Box::new(Expression::Call(call)))
     }
 
@@ -519,6 +523,52 @@ impl Parser {
         }
 
         Some(args)
+    }
+
+    fn parse_array_literal(&mut self) -> Option<Expression> {
+        let token = self.current_token.clone();
+
+        let elements = self
+            .parse_expression_list(Token::Rbracket)
+            .expect("error parsing array expression");
+
+        let array = ArrayLiteral { token, elements };
+
+        Some(Expression::Array(array))
+    }
+
+    fn parse_expression_list(&mut self, end: Token) -> Option<Vec<Expression>> {
+        let mut expressions = vec![];
+
+        if self.peek_token == end {
+            self.next_token();
+            return Some(expressions);
+        }
+
+        self.next_token();
+
+        expressions.push(
+            *self
+                .parse_expression(Precedence::Lowest)
+                .expect("missing expression"),
+        );
+
+        while self.peek_token == Token::Comma {
+            self.next_token();
+            self.next_token();
+
+            expressions.push(
+                *self
+                    .parse_expression(Precedence::Lowest)
+                    .expect("missing expression"),
+            );
+        }
+
+        if !self.expect_peek(end) {
+            return None;
+        }
+
+        Some(expressions)
     }
 }
 
@@ -1081,7 +1131,7 @@ mod parser_tests {
             format!("{:?}", Token::Int(1))
         );
 
-        let second = match *call.arguments.get(1).unwrap().clone() {
+        let second = match call.arguments.get(1).unwrap().clone() {
             Expression::Infix(e) => e,
             _ => panic!("There's no expression"),
         };
@@ -1095,7 +1145,7 @@ mod parser_tests {
             &Token::Int(3),
         );
 
-        let third = match *call.arguments.get(2).unwrap().clone() {
+        let third = match call.arguments.get(2).unwrap().clone() {
             Expression::Infix(e) => e,
             _ => panic!("There's no expression"),
         };
@@ -1134,6 +1184,36 @@ mod parser_tests {
         };
 
         assert_eq!(literal.token, Token::String("hello world".to_string()))
+    }
+
+    #[test]
+    fn test_parsing_array_literals() {
+        let input = "[1, 2 * 2, 3 + 3]";
+
+        let lexer = Lexer::new(input.into());
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program();
+        check_parse_errors(parser.errors);
+
+        let stmt = match program
+            .statements
+            .first()
+            .expect("There's no statement here")
+        {
+            Statement::Expression(statement) => Box::new(statement),
+            _ => panic!("Error creating ExpressionStatement"),
+        };
+
+        let arr = match stmt.expression.as_ref().expect("Missin call expression") {
+            Expression::Array(e) => e,
+            _ => panic!("There's no expression"),
+        };
+
+        assert_eq!(arr.elements.len(), 3);
+
+        assert_eq!(arr.elements.get(0).unwrap().string(), "1");
+        assert_eq!(arr.elements.get(1).unwrap().string(), "(2 * 2)");
+        assert_eq!(arr.elements.get(2).unwrap().string(), "(3 + 3)");
     }
 
     fn check_parse_errors(errors: Vec<String>) {

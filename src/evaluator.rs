@@ -246,6 +246,7 @@ impl Eval for Expression {
                 Token::String(value) => Object::String(value.into()),
                 _ => panic!("error should be an String"),
             },
+            Expression::Array(_) => todo!(),
         }
     }
 }
@@ -302,7 +303,7 @@ fn extended_function_env(function: &Function, args: &Vec<Object>) -> Rc<Env> {
     env
 }
 
-fn eval_expressions(expressions: &Vec<Box<Expression>>, env: &Rc<Env>) -> Vec<Object> {
+fn eval_expressions(expressions: &Vec<Expression>, env: &Rc<Env>) -> Vec<Object> {
     let mut result: Vec<Object> = vec![];
 
     for exp in expressions {
