@@ -24,6 +24,10 @@ pub enum Object {
 #[derive(Debug, Clone)]
 pub enum BultinFunction {
     Len,
+    First,
+    Last,
+    Rest,
+    Push,
 }
 
 #[derive(Debug, Clone)]

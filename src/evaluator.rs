@@ -83,6 +83,10 @@ impl Eval for Expression {
                     Some(val) => val,
                     None => match key.as_str() {
                         "len" => Object::Bultin(BultinFunction::Len),
+                        "first" => Object::Bultin(BultinFunction::First),
+                        "last" => Object::Bultin(BultinFunction::Last),
+                        "rest" => Object::Bultin(BultinFunction::Rest),
+                        "push" => Object::Bultin(BultinFunction::Push),
                         _ => Object::Error(format!("identifier not found: {}", key)),
                     },
                 },
@@ -328,6 +332,25 @@ fn apply_function(function: &Object, args: &Vec<Object>) -> Object {
                     }
                 }
             }
+            BultinFunction::First => {
+                if args.len() != 1 {
+                    return Object::Error(format!(
+                        "wrong number of arguments. got={}, want=1",
+                        args.len()
+                    ));
+                }
+
+                match &args.first().unwrap() {
+                    Object::Array(arr) => arr.elements[0].clone(),
+                    _ => Object::Error(format!(
+                        "argument to `first` must be ARRAY, got {}",
+                        args[0]
+                    )),
+                }
+            }
+            BultinFunction::Last => todo!(),
+            BultinFunction::Rest => todo!(),
+            BultinFunction::Push => todo!(),
         },
         _ => panic!("This is not a function"),
     };
