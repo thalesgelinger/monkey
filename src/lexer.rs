@@ -56,6 +56,7 @@ impl Lexer {
             b'<' => Token::Lt,
             b'>' => Token::Gt,
             b';' => Token::Semicolon,
+            b':' => Token::Colon,
             b'(' => Token::Lparen,
             b')' => Token::Rparen,
             b',' => Token::Comma,
@@ -196,6 +197,7 @@ mod lexer_tests {
         "foobar"
         "foo bar"
         [1, 2];
+        {"foo": "bar"}
         "#;
 
         let tests = vec![
@@ -280,6 +282,11 @@ mod lexer_tests {
             Token::Int(2),
             Token::Rbracket,
             Token::Semicolon,
+            Token::Lbrace,
+            Token::String("foo".to_string()),
+            Token::Colon,
+            Token::String("bar".to_string()),
+            Token::Rbrace,
             Token::Eof,
         ];
 

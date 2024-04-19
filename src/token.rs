@@ -25,6 +25,7 @@ pub enum Token {
     // Delimiters
     Comma,
     Semicolon,
+    Colon,
 
     Lparen,
     Rparen,
