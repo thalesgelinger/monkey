@@ -359,10 +359,9 @@ fn apply_function(function: &Object, args: &Vec<Object>) -> Object {
 
                 match &args.first().unwrap() {
                     Object::Array(arr) => arr.elements.last().unwrap().clone(),
-                    _ => Object::Error(format!(
-                        "argument to `first` must be ARRAY, got {}",
-                        args[0]
-                    )),
+                    _ => {
+                        Object::Error(format!("argument to `last` must be ARRAY, got {}", args[0]))
+                    }
                 }
             }
             BultinFunction::Rest => {
@@ -382,13 +381,30 @@ fn apply_function(function: &Object, args: &Vec<Object>) -> Object {
                             Object::Null
                         }
                     }
-                    _ => Object::Error(format!(
-                        "argument to `first` must be ARRAY, got {}",
-                        args[0]
-                    )),
+                    _ => {
+                        Object::Error(format!("argument to `rest` must be ARRAY, got {}", args[0]))
+                    }
                 }
             }
-            BultinFunction::Push => todo!(),
+            BultinFunction::Push => {
+                if args.len() != 2 {
+                    return Object::Error(format!(
+                        "wrong number of arguments. got={}, want=2",
+                        args.len()
+                    ));
+                }
+
+                match &args.first().unwrap() {
+                    Object::Array(arr) => {
+                        let mut elements = arr.elements.clone();
+                        elements.push(args.get(1).unwrap().clone());
+                        Object::Array(Array { elements })
+                    }
+                    _ => {
+                        Object::Error(format!("argument to `push` must be ARRAY, got {}", args[0]))
+                    }
+                }
+            }
         },
         _ => panic!("This is not a function"),
     };
