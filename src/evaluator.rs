@@ -348,7 +348,23 @@ fn apply_function(function: &Object, args: &Vec<Object>) -> Object {
                     )),
                 }
             }
-            BultinFunction::Last => todo!(),
+
+            BultinFunction::Last => {
+                if args.len() != 1 {
+                    return Object::Error(format!(
+                        "wrong number of arguments. got={}, want=1",
+                        args.len()
+                    ));
+                }
+
+                match &args.first().unwrap() {
+                    Object::Array(arr) => arr.elements.last().unwrap().clone(),
+                    _ => Object::Error(format!(
+                        "argument to `first` must be ARRAY, got {}",
+                        args[0]
+                    )),
+                }
+            }
             BultinFunction::Rest => todo!(),
             BultinFunction::Push => todo!(),
         },
