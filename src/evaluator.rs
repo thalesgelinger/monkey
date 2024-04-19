@@ -3,7 +3,7 @@ use std::mem::discriminant;
 use std::rc::Rc;
 use std::usize;
 
-use crate::ast::{Expression, Program, Statement};
+use crate::ast::{ArrayLiteral, Expression, Program, Statement};
 use crate::environment::Env;
 use crate::object::{Array, BultinFunction, Function, Object};
 use crate::token::Token;
@@ -365,7 +365,29 @@ fn apply_function(function: &Object, args: &Vec<Object>) -> Object {
                     )),
                 }
             }
-            BultinFunction::Rest => todo!(),
+            BultinFunction::Rest => {
+                if args.len() != 1 {
+                    return Object::Error(format!(
+                        "wrong number of arguments. got={}, want=1",
+                        args.len()
+                    ));
+                }
+
+                match &args.first().unwrap() {
+                    Object::Array(arr) => {
+                        if arr.elements.len() > 0 {
+                            let elements = arr.elements[1..arr.elements.len()].to_vec();
+                            Object::Array(Array { elements })
+                        } else {
+                            Object::Null
+                        }
+                    }
+                    _ => Object::Error(format!(
+                        "argument to `first` must be ARRAY, got {}",
+                        args[0]
+                    )),
+                }
+            }
             BultinFunction::Push => todo!(),
         },
         _ => panic!("This is not a function"),
