@@ -313,6 +313,13 @@ fn apply_function(function: &Object, args: &Vec<Object>) -> Object {
                     Object::String(value) => {
                         Object::Integer(value.len().try_into().expect("failed parsing to to int"))
                     }
+                    Object::Array(value) => Object::Integer(
+                        value
+                            .elements
+                            .len()
+                            .try_into()
+                            .expect("failed parsing to to int"),
+                    ),
                     _ => {
                         return Object::Error(format!(
                             "argument to 'len' not supported, got {}",
