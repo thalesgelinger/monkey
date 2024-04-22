@@ -56,7 +56,7 @@ impl Object {
             Object::Integer(value) => value.to_string(),
             Object::Boolean(value) => value.to_string(),
             Object::String(value) => value.to_string(),
-            _ => panic!("Not valid as key for hashmap"),
+            _ => panic!("Not valid as key for hashmap: [{}]", self),
         }
     }
 

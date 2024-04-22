@@ -280,6 +280,16 @@ impl Eval for Expression {
                             None => Object::Null,
                         }
                     }
+                    (
+                        Object::Hash(hash),
+                        Object::Integer(_) | Object::String(_) | Object::Boolean(_),
+                    ) => match hash.pairs.get(&index.hash()) {
+                        Some(value) => value.clone(),
+                        None => Object::Null,
+                    },
+                    (Object::Hash(_), Object::Function(_) | Object::Bultin(_)) => {
+                        Object::Error(format!("unusable as hash key: {}", index))
+                    }
                     _ => Object::Error(format!(
                         "index operator not supported: {}",
                         left.to_string()
@@ -638,6 +648,10 @@ mod evaluator_test {
             ),
             ("foobar", "identifier not found: foobar"),
             ("\"Hello\" - \"World\"", "unknown operator: STRING - STRING"),
+            (
+                "{\"name\": \"Monkey\"}[fn(x) { x }];",
+                "unusable as hash key: FUNCTION",
+            ),
         ];
 
         for (input, expected) in tests {
@@ -828,6 +842,27 @@ mod evaluator_test {
                     assert_eq!(&value, val)
                 }
                 _ => panic!("should be ain integer"),
+            }
+        }
+    }
+
+    #[test]
+    fn test_hash_index_expressions() {
+        let tests = vec![
+            ("{\"foo\": 5}[\"foo\"]", Some(5)),
+            ("{\"foo\": 5}[\"bar\"]", None),
+            ("let key = \"foo\"; {\"foo\": 5}[key]", Some(5)),
+            ("{}[\"foo\"]", None),
+            ("{5: 5}[5]", Some(5)),
+            ("{true: 5}[true]", Some(5)),
+            ("{false: 5}[false]", Some(5)),
+        ];
+
+        for (input, expected) in tests {
+            let evaluated = test_eval(input.into());
+            match expected {
+                Some(value) => assert_eq!(evaluated.inspect(), value.to_string()),
+                None => assert_eq!(evaluated.inspect(), "null"),
             }
         }
     }
