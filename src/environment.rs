@@ -34,7 +34,8 @@ impl Env {
         }
     }
 
-    pub fn set(&self, key: String, value: Object) -> () {
-        self.store.borrow_mut().insert(key, value);
+    pub fn set(&self, key: String, value: Object) -> Object {
+        self.store.borrow_mut().insert(key, value.clone());
+        value
     }
 }

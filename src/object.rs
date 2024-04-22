@@ -31,6 +31,7 @@ pub enum BultinFunction {
     Last,
     Rest,
     Push,
+    Puts,
 }
 
 #[derive(Debug, Clone)]

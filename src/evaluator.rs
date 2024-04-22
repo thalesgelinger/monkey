@@ -51,9 +51,6 @@ impl Eval for Statement {
                     Token::Ident(name) => env.set(name.into(), val),
                     _ => panic!("error should be an ident"),
                 }
-
-                // TODO: add env
-                Object::Null
             }
             Statement::Return(exp) => {
                 let result = exp
@@ -88,6 +85,7 @@ impl Eval for Expression {
                         "last" => Object::Bultin(BultinFunction::Last),
                         "rest" => Object::Bultin(BultinFunction::Rest),
                         "push" => Object::Bultin(BultinFunction::Push),
+                        "puts" => Object::Bultin(BultinFunction::Puts),
                         _ => Object::Error(format!("identifier not found: {}", key)),
                     },
                 },
@@ -437,6 +435,12 @@ fn apply_function(function: &Object, args: &Vec<Object>) -> Object {
                     }
                 }
             }
+            BultinFunction::Puts => {
+                for arg in args {
+                    println!("{}", arg.inspect());
+                }
+                Object::Null
+            }
         },
         _ => panic!("This is not a function"),
     };
@@ -452,7 +456,9 @@ fn extended_function_env(function: &Function, args: &Vec<Object>) -> Rc<Env> {
 
     for (i, param) in function.parameters.iter().enumerate() {
         match (param.token.clone(), args.get(i)) {
-            (Token::Ident(key), Some(value)) => env.set(key, value.clone()),
+            (Token::Ident(key), Some(value)) => {
+                env.set(key, value.clone());
+            }
             _ => (),
         }
     }
