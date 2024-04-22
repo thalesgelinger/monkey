@@ -1,7 +1,10 @@
+use std::collections::HashMap;
+
 use crate::ast::{
     ArrayLiteral, BlockStatement, Boolean, CallExpression, Expression, ExpressionStatement,
-    FunctionLiteral, Identifier, IfExpression, IndexExpression, InfixExpression, IntegerLiteral,
-    LetStatement, PrefixExpression, Program, ReturnStatement, Statement, StringLiteral,
+    FunctionLiteral, HashLiteral, Identifier, IfExpression, IndexExpression, InfixExpression,
+    IntegerLiteral, LetStatement, PrefixExpression, Program, ReturnStatement, Statement,
+    StringLiteral,
 };
 use crate::lexer::Lexer;
 use crate::token::Token;
@@ -207,6 +210,7 @@ impl Parser {
                 Some(Expression::String(string))
             }
             Token::Lbracket => self.parse_array_literal(),
+            Token::Lbrace => self.parse_hash_literal(),
             _ => None,
         }
     }
@@ -597,6 +601,44 @@ impl Parser {
             left: left.expect("inavalid left index expression"),
         };
         Some(Box::new(Expression::Index(expression)))
+    }
+
+    fn parse_hash_literal(&mut self) -> Option<Expression> {
+        let token = self.current_token.clone();
+
+        let mut pairs: Vec<(Expression, Expression)> = vec![];
+
+        while self.peek_token != Token::Rbrace {
+            self.next_token();
+
+            let key = self
+                .parse_expression(Precedence::Lowest)
+                .expect("missing key expression");
+
+            if !self.expect_peek(Token::Colon) {
+                return None;
+            }
+
+            self.next_token();
+            let value = self
+                .parse_expression(Precedence::Lowest)
+                .expect("missing value expression");
+            pairs.push((*key, *value));
+
+            if self.peek_token != Token::Rbrace && !self.expect_peek(Token::Comma) {
+                return None;
+            }
+        }
+
+        if !self.expect_peek(Token::Rbrace) {
+            return None;
+        }
+
+        let hash_exp = HashLiteral {
+            token,
+            pairs: pairs.clone(),
+        };
+        Some(Expression::Hash(hash_exp))
     }
 }
 
@@ -1277,6 +1319,86 @@ mod parser_tests {
 
         assert_eq!(index_exp.left.string(), "myArray");
         assert_eq!(index_exp.index.string(), "(1 + 1)");
+    }
+
+    #[test]
+    fn test_parsing_hash_literals_string_keys() {
+        let input = "{\"one\": 1, \"two\": 2, \"three\": 3}";
+        let expected = "{one:1, two:2, three:3}";
+
+        let lexer = Lexer::new(input.into());
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program();
+        check_parse_errors(parser.errors);
+
+        let stmt = match program
+            .statements
+            .first()
+            .expect("There's no statement here")
+        {
+            Statement::Expression(statement) => Box::new(statement),
+            _ => panic!("Error creating ExpressionStatement"),
+        };
+
+        let hash_exp = match stmt.expression.as_ref().expect("Missin call expression") {
+            Expression::Hash(e) => e,
+            _ => panic!("There's no expression"),
+        };
+
+        assert_eq!(hash_exp.string(), expected)
+    }
+
+    #[test]
+    fn test_parsing_empty_hash_literal() {
+        let input = "{}";
+
+        let lexer = Lexer::new(input.into());
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program();
+        check_parse_errors(parser.errors);
+
+        let stmt = match program
+            .statements
+            .first()
+            .expect("There's no statement here")
+        {
+            Statement::Expression(statement) => Box::new(statement),
+            _ => panic!("Error creating ExpressionStatement"),
+        };
+
+        let hash_exp = match stmt.expression.as_ref().expect("Missin call expression") {
+            Expression::Hash(e) => e,
+            _ => panic!("There's no expression"),
+        };
+
+        assert_eq!(hash_exp.string(), input)
+    }
+
+    #[test]
+    fn test_parsing_hash_literals_with_expressions() {
+        let input = "{\"one\": 0 + 1, \"two\": 10 - 8, \"three\": 15 / 5}";
+        let expected = "{one:(0 + 1), two:(10 - 8), three:(15 / 5)}";
+
+        let lexer = Lexer::new(input.into());
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program();
+        check_parse_errors(parser.errors);
+
+        let stmt = match program
+            .statements
+            .first()
+            .expect("There's no statement here")
+        {
+            Statement::Expression(statement) => Box::new(statement),
+            _ => panic!("Error creating ExpressionStatement"),
+        };
+
+        let hash_exp = match stmt.expression.as_ref().expect("Missin call expression") {
+            Expression::Hash(e) => e,
+            _ => panic!("There's no expression"),
+        };
+
+        assert_eq!(hash_exp.string(), expected)
     }
 
     fn check_parse_errors(errors: Vec<String>) {

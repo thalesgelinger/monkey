@@ -1,5 +1,6 @@
 use crate::token::Token;
 use core::fmt::Debug;
+use std::collections::HashMap;
 
 pub trait Node {
     fn token_literal(&self) -> String;
@@ -37,6 +38,7 @@ pub enum Expression {
     Int(IntegerLiteral),
     String(StringLiteral),
     Array(ArrayLiteral),
+    Hash(HashLiteral),
     Index(IndexExpression),
     Prefix(PrefixExpression),
     Infix(InfixExpression),
@@ -60,6 +62,7 @@ impl Node for Expression {
             Expression::String(string) => string.token_literal(),
             Expression::Array(array) => array.token_literal(),
             Expression::Index(index_exp) => index_exp.token_literal(),
+            Expression::Hash(hash_exp) => hash_exp.token_literal(),
         }
     }
 
@@ -76,6 +79,7 @@ impl Node for Expression {
             Expression::String(string) => string.string(),
             Expression::Array(array) => array.string(),
             Expression::Index(index_exp) => index_exp.string(),
+            Expression::Hash(hash_exp) => hash_exp.string(),
         }
     }
 }
@@ -277,6 +281,33 @@ impl Node for ArrayLiteral {
         out.push_str("[");
         out.push_str(&elements.join(", "));
         out.push_str("]");
+
+        out
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct HashLiteral {
+    pub token: Token,
+    pub pairs: Vec<(Expression, Expression)>,
+}
+
+impl Node for HashLiteral {
+    fn token_literal(&self) -> String {
+        format!("{:?}", self.token)
+    }
+
+    fn string(&self) -> String {
+        let mut out = String::from("");
+
+        let mut pairs: Vec<String> = vec![];
+        for (key, value) in &self.pairs {
+            pairs.push(format!("{}:{}", key.string(), value.string()));
+        }
+
+        out.push_str("{");
+        out.push_str(&pairs.join(", "));
+        out.push_str("}");
 
         out
     }

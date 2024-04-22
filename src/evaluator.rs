@@ -3,7 +3,7 @@ use std::mem::discriminant;
 use std::rc::Rc;
 use std::usize;
 
-use crate::ast::{ArrayLiteral, Expression, Program, Statement};
+use crate::ast::{Expression, Program, Statement};
 use crate::environment::Env;
 use crate::object::{Array, BultinFunction, Function, Object};
 use crate::token::Token;
@@ -285,6 +285,7 @@ impl Eval for Expression {
                     )),
                 }
             }
+            Expression::Hash(_) => todo!(),
         }
     }
 }
