@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fmt::{Debug, Display},
     rc::Rc,
 };
@@ -13,7 +14,9 @@ pub enum Object {
     Integer(isize),
     Boolean(bool),
     String(String),
+
     Array(Array),
+    Hash(Hash),
     Error(String),
     Return(Box<Object>),
     Function(Function),
@@ -42,7 +45,21 @@ pub struct Array {
     pub elements: Vec<Object>,
 }
 
+#[derive(Debug, Clone)]
+pub struct Hash {
+    pub pairs: HashMap<String, Object>,
+}
+
 impl Object {
+    pub fn hash(&self) -> String {
+        match self {
+            Object::Integer(value) => value.to_string(),
+            Object::Boolean(value) => value.to_string(),
+            Object::String(value) => value.to_string(),
+            _ => panic!("Not valid as key for hashmap"),
+        }
+    }
+
     pub fn inspect(&self) -> String {
         match self {
             Object::Integer(value) => value.to_string(),
@@ -83,6 +100,20 @@ impl Object {
 
                 out
             }
+            Object::Hash(hash) => {
+                let mut out = String::from("");
+
+                let mut pairs: Vec<String> = vec![];
+                for (key, value) in &hash.pairs {
+                    pairs.push(format!("{}: {}", key, value.inspect()));
+                }
+
+                out.push_str("{");
+                out.push_str(&pairs.join(", "));
+                out.push_str("}");
+
+                out
+            }
         }
     }
 }
@@ -99,6 +130,7 @@ impl Display for Object {
             Object::String(_) => write!(f, "STRING"),
             Object::Bultin(_) => write!(f, "BULTIN"),
             Object::Array(_) => write!(f, "ARRAY"),
+            Object::Hash(_) => write!(f, "HASH"),
         }
     }
 }

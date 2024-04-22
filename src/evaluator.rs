@@ -1,11 +1,12 @@
 use core::panic;
+use std::collections::HashMap;
 use std::mem::discriminant;
 use std::rc::Rc;
 use std::usize;
 
 use crate::ast::{Expression, Program, Statement};
 use crate::environment::Env;
-use crate::object::{Array, BultinFunction, Function, Object};
+use crate::object::{Array, BultinFunction, Function, Hash, Object};
 use crate::token::Token;
 
 pub trait Eval {
@@ -285,7 +286,27 @@ impl Eval for Expression {
                     )),
                 }
             }
-            Expression::Hash(_) => todo!(),
+            Expression::Hash(hash) => {
+                let mut pairs: Vec<(String, Object)> = vec![];
+
+                for (key, value) in &hash.pairs {
+                    let key = key.eval(env);
+                    if is_error(&key) {
+                        return key;
+                    }
+
+                    let value = value.eval(env);
+                    if is_error(&value) {
+                        return value;
+                    }
+
+                    pairs.push((key.hash(), value));
+                }
+
+                Object::Hash(Hash {
+                    pairs: pairs.into_iter().collect(),
+                })
+            }
         }
     }
 }
@@ -478,6 +499,8 @@ fn eval_bang(right: Object) -> Object {
 
 #[cfg(test)]
 mod evaluator_test {
+
+    use std::collections::HashMap;
 
     use super::Eval;
     use crate::ast::Node;
@@ -768,6 +791,43 @@ mod evaluator_test {
                 Object::Integer(value) => assert_eq!(value, expected.unwrap()),
                 Object::Null => assert_eq!(Object::Null.to_string(), Object::Null.to_string()),
                 _ => panic!("there's no test if it's not integer yet'"),
+            }
+        }
+    }
+
+    #[test]
+    fn test_hash_literals() {
+        let input = r#"let two = "two";
+        {
+            "one": 10 - 9,
+            two: 1 + 1,
+            "thr" + "ee": 6 / 2,
+            4: 4,
+            true: 5,
+            false: 6
+        }"#;
+
+        let mut expected = HashMap::new();
+        expected.insert("one", 1);
+        expected.insert("two", 2);
+        expected.insert("three", 3);
+        expected.insert("4", 4);
+        expected.insert("true", 5);
+        expected.insert("false", 6);
+
+        let evaluated = test_eval(input.into());
+
+        let hash = match evaluated {
+            Object::Hash(hash) => hash,
+            _ => panic!("Should be a hash map"),
+        };
+
+        for (key, value) in expected {
+            match hash.pairs.get(key).expect("missing value") {
+                Object::Integer(val) => {
+                    assert_eq!(&value, val)
+                }
+                _ => panic!("should be ain integer"),
             }
         }
     }
